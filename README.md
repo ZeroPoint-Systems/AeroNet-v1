@@ -76,5 +76,5 @@ See each folder's own README for details.
 
 ## Rules
 This repository follows 20 non-negotiable rules (traceability, no cherry-picking, no
-post-hoc hypothesis changes, no information leakage into AeroNet, etc.) — see
+post-hoc hypothesis changes, no information leakage into AeroNet, etc.) look at
 `CONTRIBUTING.md` for the full list before touching `experiments/` or `analysis/`.
