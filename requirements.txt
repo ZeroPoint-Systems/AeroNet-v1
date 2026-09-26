@@ -1,0 +1,14 @@
+numpy
+scipy
+matplotlib
+pandas
+pyyaml
+networkx
+pytest
+ruff
+black
+mypy
+seaborn
+statsmodels
+scikit-learn
+jupyter

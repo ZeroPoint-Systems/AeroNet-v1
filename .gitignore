@@ -1,0 +1,44 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.pyo
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Environments
+.venv/
+venv/
+env/
+.conda/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Large / generated data - raw experimental data should usually be tracked
+# with git-lfs or stored externally, not committed directly.
+experiments/raw/**/*.bag
+experiments/raw/**/*.csv
+experiments/raw/**/*.parquet
+experiments/raw/**/*.h5
+simulation/runs/
+*.mp4
+*.avi
+
+# Build artefacts
+build/
+dist/
+*.egg-info/
+
+# Secrets
+.env
+*.pem

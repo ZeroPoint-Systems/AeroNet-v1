@@ -1,0 +1,16 @@
+name: aeronet
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - numpy
+  - scipy
+  - matplotlib
+  - pandas
+  - pyyaml
+  - networkx
+  - jupyter
+  - pytest
+  - pip
+  - pip:
+      - -r requirements.txt
