@@ -125,5 +125,6 @@ AeroNet is scientifically mature when every question below can be answered witho
 - What are the limitations?
 - What evidence would falsify the central claim?
 
-If you cannot answer those, the project is not finished — regardless of how sophisticated the
-drones look.
+If you cannot answer those, the project is not finished... regardless of how sophisticated the
+drones look. unfortunate truths :(
+
