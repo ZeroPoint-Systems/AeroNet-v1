@@ -1,6 +1,6 @@
 # Student Contribution
 
-Record exactly what you personally designed, implemented, analysed and demonstrated — and, just
+Record exactly what you personally designed, implemented, analysed and demonstrated, and, just
 as importantly, what you did not (e.g. off-the-shelf flight controller, borrowed lab equipment,
 mentor guidance received). Update this continuously, not retroactively before judging.
 

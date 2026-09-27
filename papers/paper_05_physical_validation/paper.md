@@ -1,8 +1,8 @@
-# Paper 05 — Physical Validation
+# Paper 05, Physical Validation
 
 Only write this as a separate paper if the physical experiments provide a sufficiently distinct
 scientific contribution. **Do not split one result into five thin papers merely to increase the
-paper count** — fold this into Paper 01 if it doesn't stand on its own.
+paper count**, fold this into Paper 01 if it doesn't stand on its own.
 
 ## Structure
 

@@ -1,6 +1,6 @@
 # Estimator Model
 
-The estimator must be independently testable — do not hide it inside a controller.
+The estimator must be independently testable, do not hide it inside a controller.
 
 ## Define
 

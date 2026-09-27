@@ -1,4 +1,4 @@
-# Paper 04 — Failure Surfaces
+# Paper 04, Failure Surfaces
 
 Focus: agent failure, communication failure, sensor degradation, network fragmentation, and how
 these deform the operating boundary. Draws on `experiments/adversarial/`.

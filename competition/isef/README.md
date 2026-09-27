@@ -10,7 +10,7 @@ Include:
 - judge_questions
 - judge_answers
 - methods_summary
-- student_contribution.md — records exactly what you personally designed, implemented, analysed
+- student_contribution.md, records exactly what you personally designed, implemented, analysed
   and demonstrated
 - safety_documentation
 - references

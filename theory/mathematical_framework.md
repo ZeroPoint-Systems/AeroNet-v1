@@ -1,7 +1,7 @@
 # Mathematical Framework
 
 Define the entire system mathematically, once, here. Define notation in this file and reuse it
-consistently in every other `theory/` document, in code comments, and in the papers — do not
+consistently in every other `theory/` document, in code comments, and in the papers, do not
 redefine symbols elsewhere.
 
 ## Components to define

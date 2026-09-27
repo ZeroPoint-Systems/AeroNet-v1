@@ -1,4 +1,4 @@
-# Paper 03 — Physical Reconfiguration as Information Acquisition
+# Paper 03, Physical Reconfiguration as Information Acquisition
 
 Focus: the proposition that physical movement can function as information acquisition (H4).
 

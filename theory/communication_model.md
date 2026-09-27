@@ -13,7 +13,7 @@
 
 ## Controllability requirement
 Every quantity above must be experimentally controllable from a configuration file
-(see `simulation/communication/` and `simulation/configs/`) — not hard-coded.
+(see `simulation/communication/` and `simulation/configs/`), not hard-coded.
 
 ## Interfaces
 > _Define exact inputs/outputs of the communication module._

@@ -1,0 +1,20 @@
+{
+  "experiment_id": "pilot_002",
+  "git_commit": "6e5c6918f8cb4ef7f8dca7db429a37e28c96b8d1",
+  "configuration": "pilot_002.yaml",
+  "seed": 12345,
+  "hardware_version": "not_applicable_simulation_only",
+  "software_version": "0.1.0",
+  "timestamp_utc": "2026-09-27T05:26:01.848509+00:00",
+  "dataset": {
+    "trajectory": "trajectory.csv",
+    "metrics": "metrics.csv"
+  },
+  "communication_stats": {
+    "packets_generated": 2400,
+    "packets_delivered": 2400,
+    "packets_lost": 0,
+    "realised_loss_rate": 0.0
+  },
+  "status": "complete"
+}

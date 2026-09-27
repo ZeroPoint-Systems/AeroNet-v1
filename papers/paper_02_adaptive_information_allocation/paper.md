@@ -1,4 +1,4 @@
-# Paper 02 — Adaptive Information Allocation
+# Paper 02, Adaptive Information Allocation
 
 Focus: whether autonomous allocation of sensing, communication and movement changes the
 information operating regime (H6, FT15, FT16). Draws on `experiments/main/` and

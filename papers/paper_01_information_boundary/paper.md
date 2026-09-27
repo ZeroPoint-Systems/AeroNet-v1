@@ -1,4 +1,4 @@
-# Paper 01 — Critical Information Boundaries in Decentralised Collective Estimation
+# Paper 01, Critical Information Boundaries in Decentralised Collective Estimation
 
 The core scientific paper. Draws only from validated infrastructure: `research/`, `theory/`,
 `experiments/main/`, and `analysis/`.
