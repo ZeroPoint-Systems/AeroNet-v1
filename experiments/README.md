@@ -22,6 +22,19 @@ Actual experimental campaigns. Frozen protocols in, immutable raw data out.
 - `processed/`, derived data; every processed dataset must be traceable back to raw data.
 - `manifests/`, one manifest per experiment.
 
+## Running an experiment
+
+From the repository root, run the experiment runner with a configuration file:
+
+```powershell
+python -m experiments.runners.run_experiment --config experiments/configs/pilot_003.yaml
+```
+
+The runner writes the complete output (`config.yaml`, `metadata.json`, `trajectory.csv`,
+`metrics.csv`, and `manifest.json`) to `experiments/raw/<experiment-id>/` and records the
+manifest in `experiments/manifests/`. Each experiment ID is immutable: use a new ID in the
+configuration for every run rather than overwriting existing raw data.
+
 ## Manifest fields
 ```text
 experiment_id
