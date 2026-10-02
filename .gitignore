@@ -24,7 +24,7 @@ Thumbs.db
 .idea/
 *.swp
 
-# Large / generated data — raw experimental data should usually be tracked
+# Large / generated data raw experimental data should usually be tracked
 # with git-lfs or stored externally, not committed directly.
 experiments/raw/**/*.bag
 experiments/raw/**/*.csv
