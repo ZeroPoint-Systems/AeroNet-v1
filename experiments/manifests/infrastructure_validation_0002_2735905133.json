@@ -1,0 +1,20 @@
+{
+  "experiment_id": "infrastructure_validation_0002_2735905133",
+  "git_commit": "48d28939750cbd69bca8c3859839a1b529f10ba4",
+  "configuration": "infrastructure_validation_0002_2735905133.yaml",
+  "seed": 2735905133,
+  "hardware_version": "not_applicable_simulation_only",
+  "software_version": "0.1.0",
+  "timestamp_utc": "2026-10-02T18:47:41.690713+00:00",
+  "dataset": {
+    "trajectory": "trajectory.csv",
+    "metrics": "metrics.csv"
+  },
+  "communication_stats": {
+    "packets_generated": 1600,
+    "packets_delivered": 1600,
+    "packets_lost": 0,
+    "realised_loss_rate": 0.0
+  },
+  "status": "complete"
+}
