@@ -19,7 +19,7 @@ target:
 swarm:
   number_of_agents: 4
   spawn_radius: 10.0
-
+      
 sensing:
   measurement_noise: 1.0
 
