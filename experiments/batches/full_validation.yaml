@@ -1,0 +1,23 @@
+batch_id: full_validation
+base_config: experiments/configs/research_validation.yaml
+seed: 20261003
+replicates: 10
+
+grid:
+  sensing.measurement_noise:
+    - 0.25
+    - 0.5
+    - 1.0
+    - 2.0
+  communication.range:
+    - 10.0
+    - 25.0
+    - 50.0
+  communication.packet_loss_probability:
+    - 0.0
+    - 0.05
+    - 0.20
+  communication.latency:
+    - 0.0
+    - 0.1
+    - 0.5

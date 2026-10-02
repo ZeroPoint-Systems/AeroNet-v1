@@ -1,0 +1,12 @@
+batch_id: infrastructure_validation
+base_config: experiments/configs/pilot_001.yaml
+seed: 20261003
+output_root: experiments/raw
+
+grid:
+  sensing.measurement_noise:
+    - 0.5
+    - 1.0
+  communication.range:
+    - 10.0
+    - 25.0

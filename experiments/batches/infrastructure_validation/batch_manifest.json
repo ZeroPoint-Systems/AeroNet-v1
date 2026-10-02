@@ -1,0 +1,61 @@
+{
+  "batch_id": "infrastructure_validation",
+  "base_config": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\configs\\pilot_001.yaml",
+  "number_of_experiments": 4,
+  "completed": 4,
+  "failed": 0,
+  "experiments": [
+    {
+      "experiment_id": "infrastructure_validation_0000_2987670337",
+      "seed": 2987670337,
+      "overrides": {
+        "sensing.measurement_noise": 0.5,
+        "communication.range": 10.0
+      },
+      "config": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\batches\\infrastructure_validation\\configs\\infrastructure_validation_0000_2987670337.yaml",
+      "returncode": 0,
+      "status": "complete",
+      "stdout": "experiment complete, output written to C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\raw\\infrastructure_validation_0000_2987670337\n",
+      "stderr": ""
+    },
+    {
+      "experiment_id": "infrastructure_validation_0001_1107617124",
+      "seed": 1107617124,
+      "overrides": {
+        "sensing.measurement_noise": 0.5,
+        "communication.range": 25.0
+      },
+      "config": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\batches\\infrastructure_validation\\configs\\infrastructure_validation_0001_1107617124.yaml",
+      "returncode": 0,
+      "status": "complete",
+      "stdout": "experiment complete, output written to C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\raw\\infrastructure_validation_0001_1107617124\n",
+      "stderr": ""
+    },
+    {
+      "experiment_id": "infrastructure_validation_0002_2735905133",
+      "seed": 2735905133,
+      "overrides": {
+        "sensing.measurement_noise": 1.0,
+        "communication.range": 10.0
+      },
+      "config": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\batches\\infrastructure_validation\\configs\\infrastructure_validation_0002_2735905133.yaml",
+      "returncode": 0,
+      "status": "complete",
+      "stdout": "experiment complete, output written to C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\raw\\infrastructure_validation_0002_2735905133\n",
+      "stderr": ""
+    },
+    {
+      "experiment_id": "infrastructure_validation_0003_1297074486",
+      "seed": 1297074486,
+      "overrides": {
+        "sensing.measurement_noise": 1.0,
+        "communication.range": 25.0
+      },
+      "config": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\batches\\infrastructure_validation\\configs\\infrastructure_validation_0003_1297074486.yaml",
+      "returncode": 0,
+      "status": "complete",
+      "stdout": "experiment complete, output written to C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\raw\\infrastructure_validation_0003_1297074486\n",
+      "stderr": ""
+    }
+  ]
+}

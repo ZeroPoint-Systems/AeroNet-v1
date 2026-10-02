@@ -1,0 +1,43 @@
+# Pilot experiment 001.
+#
+# Purpose: establish that the simulator, sensing model, communication layer
+# and reference estimator behave correctly, under the simplest possible
+# conditions, before any information constraint is deliberately degraded
+# and before movement or geometry are introduced. See research/README.md,
+# section "The first experiments", and CONTRIBUTING.md, "Build order",
+# steps 20 to 22.
+#
+# Communication is configured with a large range, zero packet loss and
+# zero latency so that the communication pipeline is exercised end to end
+# without yet affecting the result: fusion is disabled, per
+# estimation.method, so this pilot validates local estimation only.
+
+experiment:
+  id: runner_test_001
+  seed: 12345
+
+simulation:
+  dt: 0.1
+  duration: 20.0
+
+target:
+  x: 50.0
+  y: 50.0
+
+swarm:
+  number_of_agents: 4
+  spawn_radius: 10.0
+
+sensing:
+  measurement_noise: 1.0
+
+communication:
+  range: 25.0
+  packet_loss_probability: 0.0
+  latency: 0.0
+  enable_fusion: false
+
+estimation:
+  method: reference_kalman
+  initial_covariance: 100.0
+  process_noise: 0.0
