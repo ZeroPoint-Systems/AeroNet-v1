@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="850" height="470" viewBox="0 0 850 470">
+<rect width="100%" height="100%" fill="white"/>
+<text x="425" y="35" font-size="22" text-anchor="middle" font-family="Arial">AeroNet Lab v2: mean position RMSE</text>
+<line x1="100" y1="370" x2="790" y2="370" stroke="black"/>
+<line x1="100" y1="70" x2="100" y2="370" stroke="black"/>
+<text x="25" y="220" transform="rotate(-90 25 220)" font-size="15" text-anchor="middle" font-family="Arial">RMSE</text>
+<rect x="145" y="120.00" width="105" height="250.00" fill="#4779a8"/>
+<text x="197.5" y="112.00" text-anchor="middle" font-size="13" font-family="Arial">1.2777</text>
+<text x="197.5" y="395" text-anchor="middle" font-size="13" font-family="Arial">none</text>
+<rect x="315" y="120.00" width="105" height="250.00" fill="#4779a8"/>
+<text x="367.5" y="112.00" text-anchor="middle" font-size="13" font-family="Arial">1.2777</text>
+<text x="367.5" y="395" text-anchor="middle" font-size="13" font-family="Arial">periodic</text>
+<rect x="485" y="120.00" width="105" height="250.00" fill="#4779a8"/>
+<text x="537.5" y="112.00" text-anchor="middle" font-size="13" font-family="Arial">1.2777</text>
+<text x="537.5" y="395" text-anchor="middle" font-size="13" font-family="Arial">reactive</text>
+<rect x="655" y="120.00" width="105" height="250.00" fill="#4779a8"/>
+<text x="707.5" y="112.00" text-anchor="middle" font-size="13" font-family="Arial">1.2777</text>
+<text x="707.5" y="395" text-anchor="middle" font-size="13" font-family="Arial">predictive</text>
+<text x="425" y="440" font-size="12" text-anchor="middle" font-family="Arial">Exploratory synthetic benchmark. Lower is better.</text>
+</svg>

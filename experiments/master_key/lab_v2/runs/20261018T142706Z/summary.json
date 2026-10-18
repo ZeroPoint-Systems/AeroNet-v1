@@ -1,0 +1,128 @@
+{
+  "run_id": "20261018T142706Z",
+  "status": "exploratory; not a novelty claim",
+  "settings": {
+    "seeds": [
+      20261020,
+      20261021,
+      20261022,
+      20261023,
+      20261024,
+      20261025,
+      20261026,
+      20261027,
+      20261028,
+      20261029,
+      20261030,
+      20261031,
+      20261032,
+      20261033,
+      20261034,
+      20261035,
+      20261036,
+      20261037,
+      20261038,
+      20261039
+    ],
+    "agents": 6,
+    "steps": 300,
+    "communication_window": 5,
+    "packet_loss_per_link": 0.1,
+    "delay_steps": [
+      1,
+      3
+    ],
+    "policies": [
+      "none",
+      "periodic",
+      "reactive",
+      "predictive"
+    ]
+  },
+  "summary": {
+    "none": {
+      "n": 20,
+      "mean_rmse": 1.2777291893215654,
+      "sd_rmse": 0.02479938166061956,
+      "rmse_bootstrap_95_interval": [
+        1.2675321718959505,
+        1.2885705818352207
+      ],
+      "mean_attempted_messages": 0.0,
+      "mean_delivered_links": 0.0,
+      "mean_dropped_links": 0.0
+    },
+    "periodic": {
+      "n": 20,
+      "mean_rmse": 1.277729189321565,
+      "sd_rmse": 0.02479938166061961,
+      "rmse_bootstrap_95_interval": [
+        1.2675321718959505,
+        1.28857058183522
+      ],
+      "mean_attempted_messages": 360.0,
+      "mean_delivered_links": 1619.2,
+      "mean_dropped_links": 180.8
+    },
+    "reactive": {
+      "n": 20,
+      "mean_rmse": 1.277729189321565,
+      "sd_rmse": 0.02479938166061942,
+      "rmse_bootstrap_95_interval": [
+        1.2675321718959498,
+        1.2885705818352207
+      ],
+      "mean_attempted_messages": 360.0,
+      "mean_delivered_links": 1596.5,
+      "mean_dropped_links": 180.8
+    },
+    "predictive": {
+      "n": 20,
+      "mean_rmse": 1.2777291893215654,
+      "sd_rmse": 0.024799381660619946,
+      "rmse_bootstrap_95_interval": [
+        1.26753217189595,
+        1.2885705818352213
+      ],
+      "mean_attempted_messages": 360.0,
+      "mean_delivered_links": 1598.25,
+      "mean_dropped_links": 180.8
+    }
+  },
+  "paired_comparisons": {
+    "predictive_minus_reactive": {
+      "mean_paired_difference": 3.6637359812630164e-16,
+      "paired_bootstrap_95_interval": [
+        -2.55351295663786e-16,
+        9.992007221626409e-16
+      ],
+      "fraction_seeds_a_better": 0.3
+    },
+    "predictive_minus_periodic": {
+      "mean_paired_difference": 5.329070518200751e-16,
+      "paired_bootstrap_95_interval": [
+        -2.7755575615628914e-16,
+        1.3433698597964394e-15
+      ],
+      "fraction_seeds_a_better": 0.3
+    },
+    "reactive_minus_periodic": {
+      "mean_paired_difference": 1.6653345369377348e-16,
+      "paired_bootstrap_95_interval": [
+        -7.327471962526033e-16,
+        9.992007221626409e-16
+      ],
+      "fraction_seeds_a_better": 0.35
+    }
+  },
+  "limitations": [
+    "Synthetic constant-velocity tracking with stochastic acceleration.",
+    "Abstract agents, not physical drones.",
+    "Covariance intersection is a simplified reference fusion method.",
+    "Predictive score is a fixed heuristic and is not yet calibrated.",
+    "Communication cost is measured as attempted broadcasts and delivered links.",
+    "One transmission opportunity per agent per window matches counts, but does not establish optimal scheduling.",
+    "No literature review or novelty claim is included.",
+    "Held-out scenario families and formal hypothesis testing remain future work."
+  ]
+}
