@@ -1,0 +1,11 @@
+﻿## main...origin/main
+ M experiments/manifests/pilot_001.json
+?? aeronet_estimator_interface.txt
+?? aeronet_integration_snapshot.txt
+?? aeronet_next_phase_audit.txt
+?? experiments/manifests/audit_fusion_off.json
+?? experiments/manifests/audit_reference_no_fusion.json
+?? experiments/manifests/integration_test.json
+?? experiments/scientific_campaign/
+?? scripts/
+

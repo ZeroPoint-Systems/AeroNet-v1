@@ -1,0 +1,1657 @@
+
+FILE: experiments\runners\run_experiment.py
+"""The experiment runner.
+
+Wires together the world, swarm, sensing, communication and estimation
+layers according to a configuration file, executes the simulation, and
+writes a complete, self describing experiment record: the configuration
+used, the software and hardware context, the trajectory of every agent's
+local estimate, the resulting metrics, and a manifest tying all of that
+together with the experiment's unique ID and the git commit it was run
+under.
+
+This module contains no scientific logic of its own. It only sequences
+calls into simulation/ and analysis/metrics/, in the order set out in
+simulation/README.md.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import platform
+import subprocess
+import sys
+from dataclasses import asdict
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List
+
+import numpy as np
+
+from analysis.metrics.covariance import covariance_trace
+from analysis.metrics.estimation_error import position_error, rmse
+from experiments.runners.config import Config, load_config
+from simulation.communication.channel import Channel
+from simulation.communication.graph import CommunicationGraph
+from simulation.communication.latency import FixedLatencyModel
+from simulation.communication.packet_loss import PacketLossModel
+from simulation.core.agent import Agent
+from simulation.core.state import State2D
+from simulation.core.swarm import Swarm
+from simulation.core.time import SimulationClock
+from simulation.core.world import World
+from simulation.estimation.reference_kalman import ReferenceKalmanFilter
+from simulation.sensing.observation_model import DirectGaussianObservationModel
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SOFTWARE_VERSION = "0.1.0"
+
+
+def _git_commit() -> str:
+    """The current git commit hash, or the literal string 'unknown' if this
+    is not a git repository or has no commits yet. Never fabricated.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return "unknown"
+    if result.returncode != 0:
+        return "unknown"
+    return result.stdout.strip()
+
+
+def build_world_and_agents(config: Config, rng_positions: np.random.Generator) -> World:
+    """Build the World and its Swarm from a validated configuration.
+
+    ASSUMPTION: agents are spawned uniformly at random within a square of
+    half width swarm.spawn_radius, centred on the origin, independent of
+    the target location. Agents do not move in sprint 1, so this initial
+    placement is fixed for the whole run.
+    """
+    swarm = Swarm()
+    for i in range(config.swarm.number_of_agents):
+        agent_id = f"agent_{i:03d}"
+        offset = rng_positions.uniform(
+            low=-config.swarm.spawn_radius, high=config.swarm.spawn_radius, size=2
+        )
+        position = State2D(x=float(offset[0]), y=float(offset[1]))
+        estimator = ReferenceKalmanFilter(
+            initial_mean=np.zeros(2),
+            initial_covariance=np.eye(2) * config.estimation.initial_covariance,
+            process_noise_covariance=np.eye(2) * config.estimation.process_noise,
+        )
+        swarm.add_agent(Agent(agent_id=agent_id, position=position, estimator=estimator))
+
+    clock = SimulationClock(dt=config.simulation.dt)
+    return World(
+        true_target_state=State2D(x=config.target.x, y=config.target.y),
+        swarm=swarm,
+        clock=clock,
+    )
+
+
+def run_simulation(config: Config) -> Dict[str, Any]:
+    """Execute one complete simulation run and return the raw trajectory
+    and communication statistics needed to write the experiment record.
+    Does not touch the filesystem.
+    """
+    seed_sequence = np.random.SeedSequence(config.experiment.seed)
+    seed_positions, seed_noise, seed_channel = seed_sequence.spawn(3)
+    rng_positions = np.random.default_rng(seed_positions)
+    rng_noise = np.random.default_rng(seed_noise)
+    rng_channel = np.random.default_rng(seed_channel)
+
+    world = build_world_and_agents(config, rng_positions)
+
+    observation_model = DirectGaussianObservationModel(
+        measurement_covariance=np.eye(2) * config.sensing.measurement_noise,
+        rng=rng_noise,
+    )
+    channel = Channel(
+        packet_loss_model=PacketLossModel(
+            loss_probability=config.communication.packet_loss_probability, rng=rng_channel
+        ),
+        latency_model=FixedLatencyModel(latency=config.communication.latency),
+    )
+
+    number_of_steps = int(round(config.simulation.duration / config.simulation.dt))
+    trajectory: List[Dict[str, Any]] = []
+
+    for _ in range(number_of_steps):
+        world.step()
+        current_time = world.clock.time
+
+        for agent in world.swarm.active_agents():
+            agent.predict(config.simulation.dt)
+            observation = observation_model.observe(
+                agent_id=agent.agent_id,
+                agent_position=agent.position,
+                true_state=world.true_target_state,
+                timestamp=current_time,
+            )
+            agent.receive_observation(observation)
+
+        graph = CommunicationGraph(
+            world.swarm.active_agents(), communication_range=config.communication.range
+        )
+        for agent in world.swarm.active_agents():
+            payload = {
+                "mean": agent.estimate.tolist(),
+                "covariance": agent.covariance.tolist(),
+            }
+            for neighbour_id in graph.neighbours(agent.agent_id):
+                channel.send(
+                    sender_id=agent.agent_id,
+                    receiver_id=neighbour_id,
+                    payload=payload,
+                    created_time=current_time,
+                    graph=graph,
+                )
+
+        delivered = channel.collect_deliverable(current_time=current_time)
+        for packet in delivered:
+            if config.communication.enable_fusion:
+                receiver = world.swarm.get_agent(packet.receiver_id)
+                mean = np.array(packet.payload["mean"])
+                covariance = np.array(packet.payload["covariance"])
+                receiver.receive_peer_estimate(packet.sender_id, mean, covariance)
+            # If fusion is disabled, the packet has still been generated,
+            # subjected to loss and latency, and delivered. Its content is
+            # simply not incorporated into the estimator. This exercises
+            # the full communication pipeline honestly, without pretending
+            # that an unresolved fusion rule has been chosen.
+
+        for agent in world.swarm.active_agents():
+            error = position_error(agent.estimate, world.true_target_state.as_array())
+            trajectory.append(
+                {
+                    "step": world.clock.step_index,
+                    "time": current_time,
+                    "agent_id": agent.agent_id,
+                    "estimate_x": float(agent.estimate[0]),
+                    "estimate_y": float(agent.estimate[1]),
+                    "position_error": error,
+                    "covariance_trace": covariance_trace(agent.covariance),
+                }
+            )
+
+    packet_loss_model = channel._packet_loss_model  # internal, read only, for reporting
+    communication_stats = {
+        "packets_generated": packet_loss_model.generated_count,
+        "packets_delivered": packet_loss_model.delivered_count,
+        "packets_lost": packet_loss_model.lost_count,
+        "realised_loss_rate": packet_loss_model.realised_loss_rate(),
+    }
+
+    return {"trajectory": trajectory, "communication_stats": communication_stats}
+
+
+def _compute_metrics(trajectory: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Per agent RMSE and final covariance trace, computed from the raw
+    trajectory. These are candidate diagnostic metrics, not the final
+    boundary criterion; see analysis/boundary_estimation.
+    """
+    by_agent: Dict[str, List[Dict[str, Any]]] = {}
+    for row in trajectory:
+        by_agent.setdefault(row["agent_id"], []).append(row)
+
+    metrics_rows = []
+    for agent_id, rows in sorted(by_agent.items()):
+        errors = [r["position_error"] for r in rows]
+        metrics_rows.append(
+            {
+                "agent_id": agent_id,
+                "rmse": rmse(errors),
+                "final_covariance_trace": rows[-1]["covariance_trace"],
+                "number_of_steps": len(rows),
+            }
+        )
+    return metrics_rows
+
+
+def _write_csv(path: Path, rows: List[Dict[str, Any]]) -> None:
+    if not rows:
+        raise ValueError(f"refusing to write an empty CSV file: {path}")
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def run(config_path: str, output_root: Path = REPO_ROOT / "experiments" / "raw") -> Path:
+    """Run one experiment end to end and write its complete record.
+
+    Raises FileExistsError if the experiment ID has already been used,
+    since raw experimental output is immutable and must never be
+    overwritten. Raises ConfigError, from experiments.runners.config, if
+    the configuration file is invalid.
+    """
+    config = load_config(config_path)
+    output_dir = Path(output_root) / config.experiment.id
+    if output_dir.exists():
+        raise FileExistsError(
+            f"experiment id {config.experiment.id!r} already has raw output at {output_dir}; "
+            "raw data is immutable, choose a new experiment id"
+        )
+
+    result = run_simulation(config)
+    trajectory = result["trajectory"]
+    metrics_rows = _compute_metrics(trajectory)
+
+    output_dir.mkdir(parents=True, exist_ok=False)
+
+    with open(config.source_path, "r") as f:
+        config_text = f.read()
+    (output_dir / "config.yaml").write_text(config_text)
+
+    timestamp_utc = datetime.now(timezone.utc).isoformat()
+    git_commit = _git_commit()
+
+    metadata = {
+        "timestamp_utc": timestamp_utc,
+        "git_commit": git_commit,
+        "software_version": SOFTWARE_VERSION,
+        "python_version": sys.version,
+        "platform": platform.platform(),
+        "numpy_version": np.__version__,
+    }
+    (output_dir / "metadata.json").write_text(json.dumps(metadata, indent=2))
+
+    _write_csv(output_dir / "trajectory.csv", trajectory)
+    _write_csv(output_dir / "metrics.csv", metrics_rows)
+
+    manifest = {
+        "experiment_id": config.experiment.id,
+        "git_commit": git_commit,
+        "configuration": config.source_path.name,
+        "seed": config.experiment.seed,
+        "hardware_version": "not_applicable_simulation_only",
+        "software_version": SOFTWARE_VERSION,
+        "timestamp_utc": timestamp_utc,
+        "dataset": {
+            "trajectory": "trajectory.csv",
+            "metrics": "metrics.csv",
+        },
+        "communication_stats": result["communication_stats"],
+        "status": "complete",
+    }
+    (output_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
+
+    manifests_dir = REPO_ROOT / "experiments" / "manifests"
+    manifests_dir.mkdir(parents=True, exist_ok=True)
+    (manifests_dir / f"{config.experiment.id}.json").write_text(json.dumps(manifest, indent=2))
+
+    return output_dir
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run a single AeroNet experiment from a configuration file.")
+    parser.add_argument("--config", required=True, help="path to an experiment configuration YAML file")
+    args = parser.parse_args()
+    output_dir = run(args.config)
+    print(f"experiment complete, output written to {output_dir}")
+
+
+if __name__ == "__main__":
+    main()
+
+
+FILE: experiments\runners\config.py
+"""Experiment configuration loading and validation.
+
+Every value that affects a scientific result is read from a configuration
+file, never hard coded in the runner or in simulator modules. This module
+is the single place where a configuration file is parsed and checked, so
+that a malformed or incomplete configuration fails loudly, before any
+simulation time is spent on it, rather than producing a silently wrong
+result.
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict
+
+import yaml
+
+
+class ConfigError(ValueError):
+    """Raised when a configuration file is missing a required field, or a
+    field has a value outside its valid range.
+    """
+
+
+def _require(section: Dict[str, Any], key: str, section_name: str) -> Any:
+    if key not in section:
+        raise ConfigError(f"missing required field '{key}' in section '{section_name}'")
+    return section[key]
+
+
+@dataclass(frozen=True)
+class ExperimentSection:
+    id: str
+    seed: int
+
+
+@dataclass(frozen=True)
+class SimulationSection:
+    dt: float
+    duration: float
+
+
+@dataclass(frozen=True)
+class TargetSection:
+    x: float
+    y: float
+
+
+@dataclass(frozen=True)
+class SwarmSection:
+    number_of_agents: int
+    spawn_radius: float
+
+
+@dataclass(frozen=True)
+class SensingSection:
+    measurement_noise: float
+
+
+@dataclass(frozen=True)
+class CommunicationSection:
+    range: float
+    packet_loss_probability: float
+    latency: float
+    enable_fusion: bool
+
+
+@dataclass(frozen=True)
+class EstimationSection:
+    method: str
+    initial_covariance: float
+    process_noise: float
+
+
+@dataclass(frozen=True)
+class Config:
+    experiment: ExperimentSection
+    simulation: SimulationSection
+    target: TargetSection
+    swarm: SwarmSection
+    sensing: SensingSection
+    communication: CommunicationSection
+    estimation: EstimationSection
+    source_path: Path
+
+
+_KNOWN_ESTIMATION_METHODS = {"reference_kalman"}
+
+
+def load_config(path: str) -> Config:
+    """Load and validate an experiment configuration file. Raises
+    ConfigError with a specific message on any missing or invalid field.
+    """
+    config_path = Path(path)
+    if not config_path.exists():
+        raise ConfigError(f"configuration file not found: {config_path}")
+
+    with open(config_path, "r") as f:
+        raw = yaml.safe_load(f)
+
+    if not isinstance(raw, dict):
+        raise ConfigError(f"configuration file must contain a mapping at the top level: {config_path}")
+
+    experiment_raw = _require(raw, "experiment", "top level")
+    simulation_raw = _require(raw, "simulation", "top level")
+    target_raw = _require(raw, "target", "top level")
+    swarm_raw = _require(raw, "swarm", "top level")
+    sensing_raw = _require(raw, "sensing", "top level")
+    communication_raw = _require(raw, "communication", "top level")
+    estimation_raw = _require(raw, "estimation", "top level")
+
+    experiment = ExperimentSection(
+        id=str(_require(experiment_raw, "id", "experiment")),
+        seed=int(_require(experiment_raw, "seed", "experiment")),
+    )
+
+    dt = float(_require(simulation_raw, "dt", "simulation"))
+    duration = float(_require(simulation_raw, "duration", "simulation"))
+    if not (math.isfinite(dt) and dt > 0):
+        raise ConfigError(f"simulation.dt must be a finite positive number, got {dt!r}")
+    if not (math.isfinite(duration) and duration > 0):
+        raise ConfigError(f"simulation.duration must be a finite positive number, got {duration!r}")
+    simulation = SimulationSection(dt=dt, duration=duration)
+
+    target = TargetSection(
+        x=float(_require(target_raw, "x", "target")),
+        y=float(_require(target_raw, "y", "target")),
+    )
+
+    number_of_agents = int(_require(swarm_raw, "number_of_agents", "swarm"))
+    if number_of_agents < 1:
+        raise ConfigError(f"swarm.number_of_agents must be at least 1, got {number_of_agents!r}")
+    spawn_radius = float(_require(swarm_raw, "spawn_radius", "swarm"))
+    if spawn_radius < 0:
+        raise ConfigError(f"swarm.spawn_radius must not be negative, got {spawn_radius!r}")
+    swarm = SwarmSection(number_of_agents=number_of_agents, spawn_radius=spawn_radius)
+
+    measurement_noise = float(_require(sensing_raw, "measurement_noise", "sensing"))
+    if measurement_noise < 0:
+        raise ConfigError(f"sensing.measurement_noise must not be negative, got {measurement_noise!r}")
+    sensing = SensingSection(measurement_noise=measurement_noise)
+
+    comm_range = float(_require(communication_raw, "range", "communication"))
+    if comm_range < 0:
+        raise ConfigError(f"communication.range must not be negative, got {comm_range!r}")
+    packet_loss_probability = float(_require(communication_raw, "packet_loss_probability", "communication"))
+    if not (0.0 <= packet_loss_probability <= 1.0):
+        raise ConfigError(
+            f"communication.packet_loss_probability must be in [0, 1], got {packet_loss_probability!r}"
+        )
+    latency = float(_require(communication_raw, "latency", "communication"))
+    if latency < 0:
+        raise ConfigError(f"communication.latency must not be negative, got {latency!r}")
+    enable_fusion = bool(communication_raw.get("enable_fusion", False))
+    communication = CommunicationSection(
+        range=comm_range,
+        packet_loss_probability=packet_loss_probability,
+        latency=latency,
+        enable_fusion=enable_fusion,
+    )
+
+    method = str(_require(estimation_raw, "method", "estimation"))
+    if method not in _KNOWN_ESTIMATION_METHODS:
+        raise ConfigError(
+            f"estimation.method {method!r} is not implemented. "
+            f"Known methods: {sorted(_KNOWN_ESTIMATION_METHODS)}"
+        )
+    initial_covariance = float(_require(estimation_raw, "initial_covariance", "estimation"))
+    if initial_covariance <= 0:
+        raise ConfigError(f"estimation.initial_covariance must be positive, got {initial_covariance!r}")
+    process_noise = float(_require(estimation_raw, "process_noise", "estimation"))
+    if process_noise < 0:
+        raise ConfigError(f"estimation.process_noise must not be negative, got {process_noise!r}")
+    estimation = EstimationSection(
+        method=method,
+        initial_covariance=initial_covariance,
+        process_noise=process_noise,
+    )
+
+    if enable_fusion and method == "reference_kalman":
+        raise ConfigError(
+            "communication.enable_fusion is true, but estimation.method 'reference_kalman' "
+            "does not implement peer fusion. See simulation/estimation/reference_kalman.py "
+            "and simulation/estimation/covariance_intersection.py."
+        )
+
+    return Config(
+        experiment=experiment,
+        simulation=simulation,
+        target=target,
+        swarm=swarm,
+        sensing=sensing,
+        communication=communication,
+        estimation=estimation,
+        source_path=config_path,
+    )
+
+
+FILE: experiments\runners\run_batch.py
+from __future__ import annotations
+
+import argparse
+import copy
+import hashlib
+import itertools
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import yaml
+
+
+def stable_seed(base_seed: int, index: int) -> int:
+    payload = f"{base_seed}:{index}".encode()
+    digest = hashlib.sha256(payload).digest()
+    return int.from_bytes(digest[:8], "big") % (2**32)
+
+
+def set_nested(data, dotted_key, value):
+    parts = dotted_key.split(".")
+    target = data
+    for part in parts[:-1]:
+        if part not in target or not isinstance(target[part], dict):
+            target[part] = {}
+        target = target[part]
+    target[parts[-1]] = value
+
+
+def get_nested(data, dotted_key):
+    target = data
+    for part in dotted_key.split("."):
+        target = target[part]
+    return target
+
+
+def expand_grid(grid):
+    keys = list(grid)
+    values = [grid[k] for k in keys]
+    for combination in itertools.product(*values):
+        yield dict(zip(keys, combination))
+
+
+def load_batch(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def run_batch(batch_path):
+    root = Path.cwd()
+    batch_path = Path(batch_path)
+    batch = load_batch(batch_path)
+
+    base_config_path = root / batch["base_config"]
+    output_root = root / batch.get("output_root", "experiments/raw")
+    batch_id = batch.get("batch_id", batch_path.stem)
+    base_seed = int(batch.get("seed", 12345))
+    grid = batch.get("grid", {})
+
+    with open(base_config_path, "r", encoding="utf-8") as f:
+        base = yaml.safe_load(f)
+
+    combinations = list(expand_grid(grid))
+    if not combinations:
+        combinations = [{}]
+
+    batch_output = root / "experiments" / "batches" / batch_id
+    configs_dir = batch_output / "configs"
+    configs_dir.mkdir(parents=True, exist_ok=True)
+
+    records = []
+
+    for index, overrides in enumerate(combinations):
+        config = copy.deepcopy(base)
+
+        for key, value in overrides.items():
+            set_nested(config, key, value)
+
+        seed = stable_seed(base_seed, index)
+        experiment_id = f"{batch_id}_{index:04d}_{seed}"
+
+        config["experiment"]["id"] = experiment_id
+        config["experiment"]["seed"] = seed
+
+        config_path = configs_dir / f"{experiment_id}.yaml"
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(config, f, sort_keys=False)
+
+        command = [
+            sys.executable,
+            "-m",
+            "experiments.runners.run_experiment",
+            "--config",
+            str(config_path),
+        ]
+
+        result = subprocess.run(
+            command,
+            cwd=root,
+            capture_output=True,
+            text=True,
+        )
+
+        record = {
+            "experiment_id": experiment_id,
+            "seed": seed,
+            "overrides": overrides,
+            "config": str(config_path),
+            "returncode": result.returncode,
+            "status": "complete" if result.returncode == 0 else "failed",
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+        }
+        records.append(record)
+
+        with open(batch_output / "batch_progress.json", "w", encoding="utf-8") as f:
+            json.dump(records, f, indent=2)
+
+        if result.returncode != 0:
+            print(result.stdout)
+            print(result.stderr, file=sys.stderr)
+            raise RuntimeError(f"Experiment failed: {experiment_id}")
+
+    summary = {
+        "batch_id": batch_id,
+        "base_config": str(base_config_path),
+        "number_of_experiments": len(records),
+        "completed": sum(r["status"] == "complete" for r in records),
+        "failed": sum(r["status"] == "failed" for r in records),
+        "experiments": records,
+    }
+
+    with open(batch_output / "batch_manifest.json", "w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2)
+
+    print(f"batch complete: {batch_id}")
+    print(f"experiments: {len(records)}")
+    print(f"output: {batch_output}")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", required=True)
+    args = parser.parse_args()
+    run_batch(args.config)
+
+
+if __name__ == "__main__":
+    main()
+
+
+FILE: simulation\__init__.py
+
+
+FILE: simulation\communication\__init__.py
+
+
+FILE: simulation\communication\channel.py
+"""The communication channel.
+
+The channel is the single place where a message travelling between two
+agents is subject to the communication graph, packet loss, and latency.
+Agents and the experiment runner never bypass it. See simulation/README.md
+for why this separation matters: it is what allows communication
+conditions to be varied experimentally without touching agent code.
+"""
+
+from __future__ import annotations
+
+from typing import Any, List
+
+from simulation.communication.graph import CommunicationGraph
+from simulation.communication.latency import FixedLatencyModel
+from simulation.communication.packet import Packet
+from simulation.communication.packet_loss import PacketLossModel
+
+
+class Channel:
+    """Applies connectivity, packet loss and latency to every message sent
+    between agents, and holds packets until their scheduled delivery time.
+    """
+
+    def __init__(
+        self,
+        packet_loss_model: PacketLossModel,
+        latency_model: FixedLatencyModel,
+    ) -> None:
+        self._packet_loss_model = packet_loss_model
+        self._latency_model = latency_model
+        self._pending: List[Packet] = []
+        self._lost: List[Packet] = []
+
+    def send(
+        self,
+        sender_id: str,
+        receiver_id: str,
+        payload: Any,
+        created_time: float,
+        graph: CommunicationGraph,
+    ) -> None:
+        """Attempt to send a message. Silently has no effect if the sender
+        and receiver are not connected in the current graph; connectivity is
+        a precondition for attempting to send, not itself a form of loss.
+        """
+        if not graph.has_edge(sender_id, receiver_id):
+            return
+
+        packet = Packet(
+            sender_id=sender_id,
+            receiver_id=receiver_id,
+            timestamp_created=created_time,
+            payload=payload,
+        )
+
+        if self._packet_loss_model.is_lost():
+            self._lost.append(packet)
+            return
+
+        delivery_time = self._latency_model.delivery_time(created_time)
+        packet.mark_delivered(delivery_time)
+        self._pending.append(packet)
+
+    def collect_deliverable(self, current_time: float) -> List[Packet]:
+        """Return every packet whose scheduled delivery time has arrived,
+        and remove them from the pending queue. A packet is never returned
+        before its scheduled delivery time.
+        """
+        ready = [p for p in self._pending if p.timestamp_delivered <= current_time]
+        self._pending = [p for p in self._pending if p.timestamp_delivered > current_time]
+        return ready
+
+    def lost_packets(self) -> List[Packet]:
+        return list(self._lost)
+
+    def pending_count(self) -> int:
+        return len(self._pending)
+
+
+FILE: simulation\communication\graph.py
+"""The communication graph.
+
+G_t = (V, E_t): an edge exists between two agents if they are currently
+able to communicate. Sprint 1 uses the simplest possible rule, a fixed
+communication range, so that the graph is a straightforward function of
+agent positions. Bandwidth, message size and more elaborate topology
+rules are layered on top of this graph later, in channel.py, rather than
+folded into the graph definition itself.
+"""
+
+from __future__ import annotations
+
+from typing import Dict, List, Set, Tuple
+
+from simulation.core.agent import Agent
+
+
+class CommunicationGraph:
+    """An undirected graph over available agents, built from a range rule.
+
+    ASSUMPTION: communication is symmetric, range based, and does not model
+    obstructions or line of sight. This is a deliberately simple baseline.
+    """
+
+    def __init__(self, agents: List[Agent], communication_range: float) -> None:
+        if communication_range < 0:
+            raise ValueError(f"communication_range must not be negative, got {communication_range!r}")
+        self._communication_range = communication_range
+        self._edges: Set[Tuple[str, str]] = set()
+        self._adjacency: Dict[str, Set[str]] = {a.agent_id: set() for a in agents}
+
+        available = [a for a in agents if a.available]
+        for i, agent_a in enumerate(available):
+            for agent_b in available[i + 1 :]:
+                distance = agent_a.position.distance_to(agent_b.position)
+                if distance <= communication_range:
+                    key = tuple(sorted((agent_a.agent_id, agent_b.agent_id)))
+                    self._edges.add(key)
+                    self._adjacency[agent_a.agent_id].add(agent_b.agent_id)
+                    self._adjacency[agent_b.agent_id].add(agent_a.agent_id)
+
+    @property
+    def communication_range(self) -> float:
+        return self._communication_range
+
+    def has_edge(self, agent_id_a: str, agent_id_b: str) -> bool:
+        return tuple(sorted((agent_id_a, agent_id_b))) in self._edges
+
+    def neighbours(self, agent_id: str) -> Set[str]:
+        return set(self._adjacency.get(agent_id, set()))
+
+    def edges(self) -> Set[Tuple[str, str]]:
+        return set(self._edges)
+
+    def edge_count(self) -> int:
+        return len(self._edges)
+
+
+FILE: simulation\communication\latency.py
+"""Latency model.
+
+Sprint 1 uses a fixed latency for every delivered packet. A random latency
+distribution is a documented later extension, not implemented here, so
+that the fixed case can be validated first.
+"""
+
+from __future__ import annotations
+
+import math
+
+
+class FixedLatencyModel:
+    """Every delivered packet arrives exactly `latency` seconds after it
+    was created.
+    """
+
+    def __init__(self, latency: float) -> None:
+        if not math.isfinite(latency) or latency < 0:
+            raise ValueError(f"latency must be finite and non-negative, got {latency!r}")
+        self.latency = latency
+
+    def delivery_time(self, created_time: float) -> float:
+        return created_time + self.latency
+
+
+FILE: simulation\communication\packet.py
+"""The communication packet.
+
+Agents never call one another directly. Every piece of information that
+crosses from one agent to another passes through a Packet, so that
+bandwidth, latency and packet loss can be modelled honestly, and so that a
+communication cost can eventually be computed from something concrete
+rather than assumed.
+"""
+
+from __future__ import annotations
+
+import math
+import pickle
+from dataclasses import dataclass, field
+from typing import Any, Optional
+
+
+@dataclass
+class Packet:
+    """A single message travelling from one agent to another.
+
+    timestamp_delivered is None until the channel has decided, based on its
+    latency and packet loss models, when or whether the packet arrives.
+    """
+
+    sender_id: str
+    receiver_id: str
+    timestamp_created: float
+    payload: Any
+    size_bytes: int = field(init=False)
+    timestamp_delivered: Optional[float] = None
+
+    def __post_init__(self) -> None:
+        if not self.sender_id or not self.receiver_id:
+            raise ValueError("sender_id and receiver_id must be non-empty strings")
+        if self.sender_id == self.receiver_id:
+            raise ValueError("a packet cannot be addressed from an agent to itself")
+        if not math.isfinite(self.timestamp_created):
+            raise ValueError(f"timestamp_created must be finite, got {self.timestamp_created!r}")
+        self.size_bytes = len(pickle.dumps(self.payload))
+
+    def mark_delivered(self, timestamp: float) -> None:
+        if self.timestamp_delivered is not None:
+            raise ValueError(f"packet from {self.sender_id!r} to {self.receiver_id!r} already delivered")
+        if timestamp < self.timestamp_created:
+            raise ValueError(
+                "a packet cannot be delivered before it was created: "
+                f"created at {self.timestamp_created}, delivery requested at {timestamp}"
+            )
+        self.timestamp_delivered = timestamp
+
+
+FILE: simulation\communication\packet_loss.py
+"""Packet loss model.
+
+The configured loss probability is a parameter of the model, not a
+guarantee about what happens in any one run. This module also records how
+many packets were actually generated, delivered and lost, so that the
+realised loss rate can be checked against the configured probability
+rather than assumed to match it.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+
+
+class PacketLossModel:
+    """Independent packet loss with a fixed probability per packet.
+
+    ASSUMPTION: losses are independent across packets. A spatially or
+    temporally correlated loss model is a distinct, explicitly separate
+    adversarial condition, not the default.
+    """
+
+    def __init__(self, loss_probability: float, rng: np.random.Generator) -> None:
+        if not (0.0 <= loss_probability <= 1.0):
+            raise ValueError(f"loss_probability must be in [0, 1], got {loss_probability!r}")
+        self.loss_probability = loss_probability
+        self._rng = rng
+        self.generated_count = 0
+        self.delivered_count = 0
+        self.lost_count = 0
+
+    def is_lost(self) -> bool:
+        """Decide, for one packet, whether it is lost. Updates the running
+        generated/delivered/lost counters used to compute the realised loss
+        rate.
+        """
+        self.generated_count += 1
+        lost = self._rng.random() < self.loss_probability
+        if lost:
+            self.lost_count += 1
+        else:
+            self.delivered_count += 1
+        return lost
+
+    def realised_loss_rate(self) -> float:
+        """The actual observed loss rate so far in this run, as distinct
+        from the configured loss_probability.
+        """
+        if self.generated_count == 0:
+            return 0.0
+        return self.lost_count / self.generated_count
+
+
+FILE: simulation\core\__init__.py
+
+
+FILE: simulation\core\agent.py
+"""Agent abstraction.
+
+An agent is deliberately narrow. It knows its own identity, its own
+position, its own availability, and holds an estimator that produces its
+local estimate and local uncertainty. It has no attribute, method, or
+reference of any kind that exposes the true state of the world.
+
+The only two ways an agent can learn anything about the world are:
+
+  1. through an Observation passed to it by the sensing layer
+  2. through a peer estimate passed to it by the communication layer
+
+Anything that bypasses those two paths, such as an agent holding a direct
+reference to the World or to another agent, is a scientific validity bug,
+not a convenience shortcut. See tests/reproducibility/test_information_isolation.py.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from simulation.core.state import State2D
+
+if TYPE_CHECKING:
+    from simulation.estimation.base import Estimator
+    from simulation.sensing.observation import Observation
+
+
+class Agent:
+    """A single decentralised agent.
+
+    Parameters
+    ----------
+    agent_id:
+        A unique, stable identifier for this agent.
+    position:
+        The agent's own position. In the sprint 1 configuration this is
+        fixed for the whole run, since agents do not yet move.
+    estimator:
+        The estimator instance that holds this agent's local estimate and
+        local uncertainty, and that is updated from observations and, once
+        peer fusion is implemented, from peer estimates.
+    available:
+        Whether the agent is currently contributing to sensing,
+        communication and estimation. An unavailable agent represents a
+        failed or temporarily disconnected agent.
+    """
+
+    def __init__(
+        self,
+        agent_id: str,
+        position: State2D,
+        estimator: "Estimator",
+        available: bool = True,
+    ) -> None:
+        if not agent_id:
+            raise ValueError("agent_id must be a non-empty string")
+        self.agent_id = agent_id
+        self.position = position
+        self._estimator = estimator
+        self.available = available
+
+    @property
+    def estimate(self):
+        """This agent's current local state estimate."""
+        return self._estimator.estimate()
+
+    @property
+    def covariance(self):
+        """This agent's current local estimate covariance."""
+        return self._estimator.covariance()
+
+    def predict(self, dt: float) -> None:
+        """Advance this agent's estimator through the process model."""
+        self._estimator.predict(dt)
+
+    def receive_observation(self, observation: "Observation") -> None:
+        """Update this agent's local estimate from a direct measurement."""
+        if observation.agent_id != self.agent_id:
+            raise ValueError(
+                "an agent may only receive an observation addressed to itself, "
+                f"got observation for {observation.agent_id!r} at agent {self.agent_id!r}"
+            )
+        self._estimator.update(observation)
+
+    def receive_peer_estimate(self, sender_id: str, mean, covariance) -> None:
+        """Incorporate an estimate received from another agent through the
+        communication layer. Never called directly by another Agent object;
+        always routed through simulation.communication.channel.Channel.
+        """
+        self._estimator.incorporate_peer_estimate(sender_id, mean, covariance)
+
+
+FILE: simulation\core\state.py
+"""Immutable two dimensional state representation.
+
+This module intentionally contains no physics and no estimation logic. It
+defines only the geometric primitive used throughout the simulator to
+represent a position in the plane.
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+
+import numpy as np
+
+
+@dataclass(frozen=True)
+class State2D:
+    """An immutable point in two dimensional space.
+
+    Both coordinates must be finite. NaN and infinity are rejected at
+    construction time rather than allowed to propagate silently into later
+    calculations.
+    """
+
+    x: float
+    y: float
+
+    def __post_init__(self) -> None:
+        for name, value in (("x", self.x), ("y", self.y)):
+            if not math.isfinite(value):
+                raise ValueError(
+                    f"State2D.{name} must be finite, got {value!r}"
+                )
+
+    def as_array(self) -> np.ndarray:
+        """Return the state as a two element NumPy array, in order x, y."""
+        return np.array([self.x, self.y], dtype=float)
+
+    def distance_to(self, other: "State2D") -> float:
+        """Euclidean distance to another State2D."""
+        return math.sqrt(self.squared_distance_to(other))
+
+    def squared_distance_to(self, other: "State2D") -> float:
+        """Squared Euclidean distance to another State2D.
+
+        Provided separately from distance_to because several downstream
+        calculations, such as comparing a distance against a squared
+        threshold, do not need the square root and should not pay for it.
+        """
+        dx = self.x - other.x
+        dy = self.y - other.y
+        return dx * dx + dy * dy
+
+    @staticmethod
+    def from_array(values: np.ndarray) -> "State2D":
+        """Construct a State2D from a two element array like object."""
+        if len(values) != 2:
+            raise ValueError(
+                f"expected exactly two values, got {len(values)}"
+            )
+        return State2D(x=float(values[0]), y=float(values[1]))
+
+
+FILE: simulation\core\swarm.py
+"""Swarm abstraction: a managed collection of agents.
+
+The swarm does not implement any estimation or control logic. It only
+manages membership, and reports the counts that later become experimental
+variables, in particular the distinction between the total number of
+agents and the number currently available.
+"""
+
+from __future__ import annotations
+
+from typing import Dict, Iterator, List
+
+from simulation.core.agent import Agent
+
+
+class DuplicateAgentIDError(Exception):
+    """Raised when an agent is added under an ID that is already in use."""
+
+
+class UnknownAgentIDError(Exception):
+    """Raised when an operation refers to an agent ID that is not present."""
+
+
+class Swarm:
+    """A collection of Agent objects, indexed by agent_id."""
+
+    def __init__(self) -> None:
+        self._agents: Dict[str, Agent] = {}
+
+    def add_agent(self, agent: Agent) -> None:
+        if agent.agent_id in self._agents:
+            raise DuplicateAgentIDError(
+                f"an agent with id {agent.agent_id!r} already exists in this swarm"
+            )
+        self._agents[agent.agent_id] = agent
+
+    def remove_agent(self, agent_id: str) -> None:
+        if agent_id not in self._agents:
+            raise UnknownAgentIDError(f"no agent with id {agent_id!r} in this swarm")
+        del self._agents[agent_id]
+
+    def get_agent(self, agent_id: str) -> Agent:
+        if agent_id not in self._agents:
+            raise UnknownAgentIDError(f"no agent with id {agent_id!r} in this swarm")
+        return self._agents[agent_id]
+
+    def active_agents(self) -> List[Agent]:
+        """All agents currently marked available."""
+        return [a for a in self._agents.values() if a.available]
+
+    def all_agents(self) -> List[Agent]:
+        """Every agent in the swarm, available or not."""
+        return list(self._agents.values())
+
+    def agent_count(self) -> int:
+        """N_total: the total number of agents in the swarm, available or not."""
+        return len(self._agents)
+
+    def available_agent_count(self) -> int:
+        """N_available: the number of agents currently marked available."""
+        return len(self.active_agents())
+
+    def failed_agent_count(self) -> int:
+        """N_failed: the number of agents currently marked unavailable."""
+        return self.agent_count() - self.available_agent_count()
+
+    def __iter__(self) -> Iterator[Agent]:
+        return iter(self._agents.values())
+
+    def __len__(self) -> int:
+        return self.agent_count()
+
+
+FILE: simulation\core\time.py
+"""Deterministic simulation clock.
+
+The simulator never uses wall clock time. Every notion of time inside a
+simulation run is derived from a fixed step size and a step counter, so
+that a run can be paused, resumed, or reproduced exactly without depending
+on how long the computation actually took.
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass, field
+
+
+@dataclass
+class SimulationClock:
+    """A deterministic clock advancing in fixed steps of size dt.
+
+    The invariant time == step_index * dt is checked on every read and
+    after every step, rather than assumed.
+    """
+
+    dt: float
+    step_index: int = 0
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.dt) or self.dt <= 0.0:
+            raise ValueError(f"dt must be a finite positive number, got {self.dt!r}")
+        if self.step_index < 0:
+            raise ValueError(f"step_index must not be negative, got {self.step_index!r}")
+
+    @property
+    def time(self) -> float:
+        return self.step_index * self.dt
+
+    def step(self) -> float:
+        """Advance the clock by one step and return the new time."""
+        self.step_index += 1
+        return self.time
+
+    def reset(self) -> None:
+        """Return the clock to step zero, time zero."""
+        self.step_index = 0
+
+
+FILE: simulation\core\world.py
+"""World: the container for simulation ground truth.
+
+The World is the only object in the simulator permitted to hold the true
+target state. It is read by the sensing layer, in order to generate
+observations, and by the analysis layer, in order to score estimates
+against ground truth. It must never be read by an Agent, by an Estimator,
+or by anything inside simulation.communication.
+
+In the sprint 1 configuration the target is static, so World does not yet
+implement target dynamics. That is deliberate: introducing a moving target
+before the estimation and communication machinery has been validated on a
+static target would make it impossible to tell which change caused any
+observed effect.
+"""
+
+from __future__ import annotations
+
+from simulation.core.state import State2D
+from simulation.core.swarm import Swarm
+from simulation.core.time import SimulationClock
+
+
+class World:
+    """The simulation environment: ground truth, the swarm, and the clock."""
+
+    def __init__(
+        self,
+        true_target_state: State2D,
+        swarm: Swarm,
+        clock: SimulationClock,
+    ) -> None:
+        self.true_target_state = true_target_state
+        self.swarm = swarm
+        self.clock = clock
+
+    def step(self) -> float:
+        """Advance the simulation clock by one step.
+
+        Target dynamics, once introduced, will be advanced here as well.
+        For now the target does not move, so this only advances the clock.
+        """
+        return self.clock.step()
+
+
+FILE: simulation\estimation\__init__.py
+
+
+FILE: simulation\estimation\base.py
+"""The estimator interface.
+
+Every estimator used anywhere in AeroNet, whether a local filter, a
+distributed filter, a covariance intersection fusion rule, or the
+centralised oracle used only as a reference bound, implements this same
+interface. This is what allows estimators to be swapped and compared
+without changing any other part of the simulator.
+
+An estimator never receives the true state directly. It only ever receives
+an Observation, through update(), or a peer's published mean and
+covariance, through incorporate_peer_estimate().
+"""
+
+from __future__ import annotations
+
+from typing import Protocol
+
+import numpy as np
+
+from simulation.sensing.observation import Observation
+
+
+class Estimator(Protocol):
+    """The interface every estimator implementation must satisfy."""
+
+    def predict(self, dt: float) -> None:
+        """Advance the estimate through the process model by dt."""
+        ...
+
+    def update(self, observation: Observation) -> None:
+        """Incorporate a direct measurement."""
+        ...
+
+    def incorporate_peer_estimate(
+        self, sender_id: str, mean: np.ndarray, covariance: np.ndarray
+    ) -> None:
+        """Incorporate an estimate received from another agent.
+
+        This is the step where naively averaging correlated estimates would
+        silently produce an overconfident fused uncertainty. Implementations
+        must either use a fusion rule whose consistency properties are
+        established in the literature, or must refuse to fuse and say so
+        explicitly, rather than default to a plain average. See
+        simulation/estimation/covariance_intersection.py.
+        """
+        ...
+
+    def estimate(self) -> np.ndarray:
+        """The current state estimate."""
+        ...
+
+    def covariance(self) -> np.ndarray:
+        """The current estimate covariance."""
+        ...
+
+
+FILE: simulation\estimation\covariance_intersection.py
+"""Covariance intersection, a placeholder pending the estimator literature
+review.
+
+STATUS: LITERATURE-DEPENDENT
+
+Distributed cooperative localisation has a substantial body of existing
+work on this exact problem: naively averaging two agents' estimates, or
+naively averaging their covariances, produces a fused result that
+understates the true uncertainty whenever the two estimates are
+correlated, for example because they were both updated using information
+that ultimately traces back to the same earlier measurement. Covariance
+intersection, and related consistent fusion rules, exist specifically to
+avoid that failure.
+
+This module exists so that the research question of which fusion rule to
+use is visible in the code as an open, tracked decision, rather than
+silently resolved by whichever rule happened to be easiest to implement.
+It is not wired into the experiment runner, and selecting it in a
+configuration file is expected to raise NotImplementedError, until
+research/literature_review.md and theory/estimator_model.md have
+established which formulation to use and why.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+
+
+class CovarianceIntersectionEstimator:
+    """Not yet implemented. See the module docstring above."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        raise NotImplementedError(
+            "CovarianceIntersectionEstimator is a documented placeholder. "
+            "Its fusion rule is STATUS: LITERATURE-DEPENDENT and has not yet "
+            "been chosen. See research/literature_review.md and "
+            "theory/estimator_model.md."
+        )
+
+    def predict(self, dt: float) -> None:
+        raise NotImplementedError
+
+    def update(self, observation) -> None:
+        raise NotImplementedError
+
+    def incorporate_peer_estimate(self, sender_id: str, mean: np.ndarray, covariance: np.ndarray) -> None:
+        raise NotImplementedError
+
+    def estimate(self) -> np.ndarray:
+        raise NotImplementedError
+
+    def covariance(self) -> np.ndarray:
+        raise NotImplementedError
+
+
+FILE: simulation\estimation\reference_kalman.py
+"""Reference linear Gaussian Kalman filter.
+
+This is a local-only estimator, intentionally. It implements the standard
+prediction and update equations for
+
+    x_{k+1} = x_k + w_k,   w_k ~ N(0, Q)
+    z_k     = H x_k + v_k, v_k ~ N(0, R)
+
+with H fixed to the identity, consistent with the sprint 1 observation
+model in simulation/sensing/observation_model.py. Its behaviour is
+analytically predictable, which is what makes it useful as a reference
+implementation to validate against, before any more elaborate estimator is
+introduced.
+
+It deliberately does not fuse peer estimates. See incorporate_peer_estimate
+below and simulation/estimation/covariance_intersection.py.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+
+
+class ReferenceKalmanFilter:
+    """A local, single-agent linear Gaussian Kalman filter.
+
+    Parameters
+    ----------
+    initial_mean:
+        The prior mean, x_0.
+    initial_covariance:
+        The prior covariance, P_0. Should be large relative to the
+        expected measurement noise if no informative prior is available,
+        rather than arbitrarily small.
+    process_noise_covariance:
+        Q, the process noise covariance added at every predict() call.
+        ASSUMPTION: for a genuinely static hidden state, Q should be the
+        zero matrix; a small positive Q is sometimes used in practice to
+        keep the filter from becoming overconfident, but that is a
+        modelling choice that must be stated, not left implicit.
+    """
+
+    def __init__(
+        self,
+        initial_mean: np.ndarray,
+        initial_covariance: np.ndarray,
+        process_noise_covariance: np.ndarray,
+    ) -> None:
+        self._mean = np.asarray(initial_mean, dtype=float).copy()
+        self._covariance = np.asarray(initial_covariance, dtype=float).copy()
+        self._process_noise = np.asarray(process_noise_covariance, dtype=float).copy()
+
+        d = self._mean.shape[0]
+        if self._covariance.shape != (d, d):
+            raise ValueError(
+                f"initial_covariance must have shape ({d}, {d}), got {self._covariance.shape}"
+            )
+        if self._process_noise.shape != (d, d):
+            raise ValueError(
+                f"process_noise_covariance must have shape ({d}, {d}), got {self._process_noise.shape}"
+            )
+
+    def predict(self, dt: float) -> None:
+        # F is fixed to the identity: the process model is a random walk,
+        # not a velocity model, so dt only scales the process noise.
+        self._covariance = self._covariance + self._process_noise * dt
+
+    def update(self, observation) -> None:
+        z = observation.value
+        r = observation.covariance
+        identity = np.eye(self._mean.shape[0])
+
+        innovation = z - self._mean
+        innovation_covariance = self._covariance + r
+        kalman_gain = self._covariance @ np.linalg.inv(innovation_covariance)
+
+        self._mean = self._mean + kalman_gain @ innovation
+        self._covariance = (identity - kalman_gain) @ self._covariance
+
+    def incorporate_peer_estimate(self, sender_id: str, mean: np.ndarray, covariance: np.ndarray) -> None:
+        raise NotImplementedError(
+            "ReferenceKalmanFilter is intentionally local-only. Peer estimates "
+            "received from other agents are typically correlated with this "
+            "agent's own estimate, through shared prior fusion history, and "
+            "naively averaging them would understate the fused uncertainty. "
+            "A consistent fusion rule is a literature-dependent decision; see "
+            "simulation/estimation/covariance_intersection.py, which is a "
+            "documented stub pending the estimator literature review."
+        )
+
+    def estimate(self) -> np.ndarray:
+        return self._mean.copy()
+
+    def covariance(self) -> np.ndarray:
+        return self._covariance.copy()
+
+
+FILE: simulation\sensing\__init__.py
+
+
+FILE: simulation\sensing\noise.py
+"""Noise models for sensing.
+
+Every stochastic component in the simulator receives an explicit,
+caller supplied random number generator. No module in this package ever
+calls the global NumPy random state. This is what makes an experiment
+exactly reproducible from its recorded seed, and what makes the
+deterministic seed test in tests/reproducibility meaningful.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+
+
+class GaussianNoise:
+    """Zero mean multivariate Gaussian noise with a fixed covariance.
+
+    Parameters
+    ----------
+    covariance:
+        The noise covariance matrix, R. Must be square and symmetric.
+    rng:
+        An explicit NumPy random number generator. Never created internally,
+        always passed in by the caller, so that a single experiment's random
+        stream is fully determined by the seed recorded in its manifest.
+    """
+
+    def __init__(self, covariance: np.ndarray, rng: np.random.Generator) -> None:
+        covariance = np.asarray(covariance, dtype=float)
+        if covariance.ndim != 2 or covariance.shape[0] != covariance.shape[1]:
+            raise ValueError(f"covariance must be square, got shape {covariance.shape}")
+        if not np.allclose(covariance, covariance.T):
+            raise ValueError("covariance must be symmetric")
+        self.covariance = covariance
+        self._rng = rng
+
+    def sample(self) -> np.ndarray:
+        """Draw a single noise vector v ~ N(0, R)."""
+        dimension = self.covariance.shape[0]
+        return self._rng.multivariate_normal(mean=np.zeros(dimension), cov=self.covariance)
+
+
+FILE: simulation\sensing\observation.py
+"""The typed observation object.
+
+An Observation is the only channel through which sensing information may
+reach an agent's estimator. It carries enough provenance to say, later,
+exactly which agent produced it, when, and under what measurement
+uncertainty.
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+
+import numpy as np
+
+
+@dataclass(frozen=True)
+class Observation:
+    """A single sensor measurement, addressed to a specific agent.
+
+    Parameters
+    ----------
+    agent_id:
+        The agent this measurement belongs to.
+    timestamp:
+        Simulation time, from SimulationClock, at which the measurement
+        was taken.
+    value:
+        The measured value, as a NumPy array.
+    covariance:
+        The measurement noise covariance associated with this observation.
+        Must be square, symmetric, and match the dimension of value.
+    """
+
+    agent_id: str
+    timestamp: float
+    value: np.ndarray
+    covariance: np.ndarray
+
+    def __post_init__(self) -> None:
+        if not self.agent_id:
+            raise ValueError("Observation.agent_id must be a non-empty string")
+        if not math.isfinite(self.timestamp):
+            raise ValueError(f"Observation.timestamp must be finite, got {self.timestamp!r}")
+        value = np.asarray(self.value, dtype=float)
+        covariance = np.asarray(self.covariance, dtype=float)
+        if value.ndim != 1:
+            raise ValueError(f"Observation.value must be one dimensional, got shape {value.shape}")
+        if not np.all(np.isfinite(value)):
+            raise ValueError("Observation.value must be finite")
+        d = value.shape[0]
+        if covariance.shape != (d, d):
+            raise ValueError(
+                f"Observation.covariance must have shape ({d}, {d}) to match value, "
+                f"got {covariance.shape}"
+            )
+        if not np.allclose(covariance, covariance.T):
+            raise ValueError("Observation.covariance must be symmetric")
+        if not np.all(np.isfinite(covariance)):
+            raise ValueError("Observation.covariance must be finite")
+        object.__setattr__(self, "value", value)
+        object.__setattr__(self, "covariance", covariance)
+
+
+FILE: simulation\sensing\observation_model.py
+"""Observation models.
+
+An observation model implements z = h(x, p) + v, where x is the hidden
+state, p is the observing agent's position, h is the deterministic part
+of the measurement, and v is measurement noise drawn from an explicit
+noise model.
+
+Sprint 1 uses the simplest possible model, z = x + v, with a fixed
+covariance R that does not depend on agent position. This is a controlled
+baseline, not a claim about how any real UAV sensor behaves. A
+geometry-dependent model, R = R(p, x), is introduced later, once the
+static, geometry-free case has been validated. See theory/sensing_model.md
+and theory/geometry_model.md for the research-level discussion.
+"""
+
+from __future__ import annotations
+
+from typing import Protocol
+
+import numpy as np
+
+from simulation.core.state import State2D
+from simulation.sensing.noise import GaussianNoise
+from simulation.sensing.observation import Observation
+
+
+class ObservationModel(Protocol):
+    """The interface every observation model must satisfy."""
+
+    def observe(
+        self,
+        agent_id: str,
+        agent_position: State2D,
+        true_state: State2D,
+        timestamp: float,
+    ) -> Observation:
+        ...
+
+
+class DirectGaussianObservationModel:
+    """z = x + v, v ~ N(0, R), with R fixed and independent of position.
+
+    ASSUMPTION: the measurement does not depend on the observing agent's
+    position or on the true state. This is a deliberately simplified
+    baseline used to validate the estimation and communication machinery
+    before geometry-dependent sensing is introduced.
+    """
+
+    def __init__(self, measurement_covariance: np.ndarray, rng: np.random.Generator) -> None:
+        self._noise = GaussianNoise(covariance=measurement_covariance, rng=rng)
+
+    def observe(
+        self,
+        agent_id: str,
+        agent_position: State2D,
+        true_state: State2D,
+        timestamp: float,
+    ) -> Observation:
+        value = true_state.as_array() + self._noise.sample()
+        return Observation(
+            agent_id=agent_id,
+            timestamp=timestamp,
+            value=value,
+            covariance=self._noise.covariance,
+        )

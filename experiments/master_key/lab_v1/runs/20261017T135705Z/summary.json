@@ -1,0 +1,37 @@
+{
+  "status": "exploratory simulation; not evidence of novelty",
+  "configuration": {
+    "seeds": 20,
+    "steps": 300,
+    "agents": 6,
+    "dt": 0.1
+  },
+  "python": "3.14.2",
+  "numpy": "2.4.1",
+  "trials_per_mode": 20,
+  "summary": {
+    "none": {
+      "mean_rmse": 0.23440013837809875,
+      "sd_rmse": 0.01868684992507052,
+      "mean_messages_per_trial": 0.0
+    },
+    "periodic": {
+      "mean_rmse": 0.1358232222442215,
+      "sd_rmse": 0.009391250058200185,
+      "mean_messages_per_trial": 300.0
+    },
+    "adaptive": {
+      "mean_rmse": 0.12507669856546969,
+      "sd_rmse": 0.008159621115832922,
+      "mean_messages_per_trial": 300.0
+    }
+  },
+  "paired_adaptive_minus_periodic_rmse": {
+    "mean_difference": -0.010746523678751826,
+    "bootstrap_95_percent_interval": [
+      -0.012738806720857771,
+      -0.008631857382413495
+    ],
+    "interpretation": "Negative values favour adaptive; positive values favour periodic. This exploratory interval is not proof of a novel contribution."
+  }
+}

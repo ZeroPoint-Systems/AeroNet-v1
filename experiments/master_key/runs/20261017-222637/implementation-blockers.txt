@@ -1,0 +1,10 @@
+﻿.\simulation\estimation\covariance_intersection.py:4: STATUS: LITERATURE-DEPENDENT
+.\simulation\estimation\covariance_intersection.py:19: configuration file is expected to raise NotImplementedError, until
+.\simulation\estimation\covariance_intersection.py:33: raise NotImplementedError(
+.\simulation\estimation\covariance_intersection.py:35: "Its fusion rule is STATUS: LITERATURE-DEPENDENT and has not yet "
+.\simulation\estimation\covariance_intersection.py:41: raise NotImplementedError
+.\simulation\estimation\covariance_intersection.py:44: raise NotImplementedError
+.\simulation\estimation\covariance_intersection.py:47: raise NotImplementedError
+.\simulation\estimation\covariance_intersection.py:50: raise NotImplementedError
+.\simulation\estimation\covariance_intersection.py:53: raise NotImplementedError
+.\simulation\estimation\reference_kalman.py:81: raise NotImplementedError(

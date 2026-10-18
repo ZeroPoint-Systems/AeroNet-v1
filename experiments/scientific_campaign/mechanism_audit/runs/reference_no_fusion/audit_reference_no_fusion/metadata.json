@@ -1,0 +1,8 @@
+{
+  "timestamp_utc": "2026-10-14T18:22:09.881818+00:00",
+  "git_commit": "997e45329c1003bea1d3edb16502504e776a7354",
+  "software_version": "0.1.0",
+  "python_version": "3.14.2 (tags/v3.14.2:df79316, Dec  5 2025, 17:18:21) [MSC v.1944 64 bit (AMD64)]",
+  "platform": "Windows-11-10.0.26100-SP0",
+  "numpy_version": "2.4.1"
+}

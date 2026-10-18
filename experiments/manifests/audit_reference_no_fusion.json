@@ -1,0 +1,20 @@
+{
+  "experiment_id": "audit_reference_no_fusion",
+  "git_commit": "997e45329c1003bea1d3edb16502504e776a7354",
+  "configuration": "reference_no_fusion.yaml",
+  "seed": 20261013,
+  "hardware_version": "not_applicable_simulation_only",
+  "software_version": "0.1.0",
+  "timestamp_utc": "2026-10-14T18:22:09.881818+00:00",
+  "dataset": {
+    "trajectory": "trajectory.csv",
+    "metrics": "metrics.csv"
+  },
+  "communication_stats": {
+    "packets_generated": 2400,
+    "packets_delivered": 2400,
+    "packets_lost": 0,
+    "realised_loss_rate": 0.0
+  },
+  "status": "complete"
+}

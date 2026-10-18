@@ -1,11 +1,11 @@
 {
   "experiment_id": "pilot_001",
-  "git_commit": "dde2ff277b984b6769ad0d05fb9851964f6f84d5",
+  "git_commit": "a95249b18ac562c0b61609fba27c574423acc280",
   "configuration": "pilot_001.yaml",
   "seed": 12345,
   "hardware_version": "not_applicable_simulation_only",
   "software_version": "0.1.0",
-  "timestamp_utc": "2026-10-02T05:44:43.921290+00:00",
+  "timestamp_utc": "2026-10-18T14:44:28.237791+00:00",
   "dataset": {
     "trajectory": "trajectory.csv",
     "metrics": "metrics.csv"

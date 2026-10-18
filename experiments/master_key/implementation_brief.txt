@@ -1,0 +1,951 @@
+﻿
+
+==================================================
+FILE: simulation\estimation\base.py
+==================================================
+"""The estimator interface.
+
+Every estimator used anywhere in AeroNet, whether a local filter, a
+distributed filter, a covariance intersection fusion rule, or the
+centralised oracle used only as a reference bound, implements this same
+interface. This is what allows estimators to be swapped and compared
+without changing any other part of the simulator.
+
+An estimator never receives the true state directly. It only ever receives
+an Observation, through update(), or a peer's published mean and
+covariance, through incorporate_peer_estimate().
+"""
+
+from __future__ import annotations
+
+from typing import Protocol
+
+import numpy as np
+
+from simulation.sensing.observation import Observation
+
+
+class Estimator(Protocol):
+    """The interface every estimator implementation must satisfy."""
+
+    def predict(self, dt: float) -> None:
+        """Advance the estimate through the process model by dt."""
+        ...
+
+    def update(self, observation: Observation) -> None:
+        """Incorporate a direct measurement."""
+        ...
+
+    def incorporate_peer_estimate(
+        self, sender_id: str, mean: np.ndarray, covariance: np.ndarray
+    ) -> None:
+        """Incorporate an estimate received from another agent.
+
+        This is the step where naively averaging correlated estimates would
+        silently produce an overconfident fused uncertainty. Implementations
+        must either use a fusion rule whose consistency properties are
+        established in the literature, or must refuse to fuse and say so
+        explicitly, rather than default to a plain average. See
+        simulation/estimation/covariance_intersection.py.
+        """
+        ...
+
+    def estimate(self) -> np.ndarray:
+        """The current state estimate."""
+        ...
+
+    def covariance(self) -> np.ndarray:
+        """The current estimate covariance."""
+        ...
+
+
+==================================================
+FILE: simulation\estimation\reference_kalman.py
+==================================================
+"""Reference linear Gaussian Kalman filter.
+
+This is a local-only estimator, intentionally. It implements the standard
+prediction and update equations for
+
+    x_{k+1} = x_k + w_k,   w_k ~ N(0, Q)
+    z_k     = H x_k + v_k, v_k ~ N(0, R)
+
+with H fixed to the identity, consistent with the sprint 1 observation
+model in simulation/sensing/observation_model.py. Its behaviour is
+analytically predictable, which is what makes it useful as a reference
+implementation to validate against, before any more elaborate estimator is
+introduced.
+
+It deliberately does not fuse peer estimates. See incorporate_peer_estimate
+below and simulation/estimation/covariance_intersection.py.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+
+
+class ReferenceKalmanFilter:
+    """A local, single-agent linear Gaussian Kalman filter.
+
+    Parameters
+    ----------
+    initial_mean:
+        The prior mean, x_0.
+    initial_covariance:
+        The prior covariance, P_0. Should be large relative to the
+        expected measurement noise if no informative prior is available,
+        rather than arbitrarily small.
+    process_noise_covariance:
+        Q, the process noise covariance added at every predict() call.
+        ASSUMPTION: for a genuinely static hidden state, Q should be the
+        zero matrix; a small positive Q is sometimes used in practice to
+        keep the filter from becoming overconfident, but that is a
+        modelling choice that must be stated, not left implicit.
+    """
+
+    def __init__(
+        self,
+        initial_mean: np.ndarray,
+        initial_covariance: np.ndarray,
+        process_noise_covariance: np.ndarray,
+    ) -> None:
+        self._mean = np.asarray(initial_mean, dtype=float).copy()
+        self._covariance = np.asarray(initial_covariance, dtype=float).copy()
+        self._process_noise = np.asarray(process_noise_covariance, dtype=float).copy()
+
+        d = self._mean.shape[0]
+        if self._covariance.shape != (d, d):
+            raise ValueError(
+                f"initial_covariance must have shape ({d}, {d}), got {self._covariance.shape}"
+            )
+        if self._process_noise.shape != (d, d):
+            raise ValueError(
+                f"process_noise_covariance must have shape ({d}, {d}), got {self._process_noise.shape}"
+            )
+
+    def predict(self, dt: float) -> None:
+        # F is fixed to the identity: the process model is a random walk,
+        # not a velocity model, so dt only scales the process noise.
+        self._covariance = self._covariance + self._process_noise * dt
+
+    def update(self, observation) -> None:
+        z = observation.value
+        r = observation.covariance
+        identity = np.eye(self._mean.shape[0])
+
+        innovation = z - self._mean
+        innovation_covariance = self._covariance + r
+        kalman_gain = self._covariance @ np.linalg.inv(innovation_covariance)
+
+        self._mean = self._mean + kalman_gain @ innovation
+        self._covariance = (identity - kalman_gain) @ self._covariance
+
+    def incorporate_peer_estimate(self, sender_id: str, mean: np.ndarray, covariance: np.ndarray) -> None:
+        raise NotImplementedError(
+            "ReferenceKalmanFilter is intentionally local-only. Peer estimates "
+            "received from other agents are typically correlated with this "
+            "agent's own estimate, through shared prior fusion history, and "
+            "naively averaging them would understate the fused uncertainty. "
+            "A consistent fusion rule is a literature-dependent decision; see "
+            "simulation/estimation/covariance_intersection.py, which is a "
+            "documented stub pending the estimator literature review."
+        )
+
+    def estimate(self) -> np.ndarray:
+        return self._mean.copy()
+
+    def covariance(self) -> np.ndarray:
+        return self._covariance.copy()
+
+
+==================================================
+FILE: simulation\estimation\covariance_intersection.py
+==================================================
+"""Covariance intersection, a placeholder pending the estimator literature
+review.
+
+STATUS: LITERATURE-DEPENDENT
+
+Distributed cooperative localisation has a substantial body of existing
+work on this exact problem: naively averaging two agents' estimates, or
+naively averaging their covariances, produces a fused result that
+understates the true uncertainty whenever the two estimates are
+correlated, for example because they were both updated using information
+that ultimately traces back to the same earlier measurement. Covariance
+intersection, and related consistent fusion rules, exist specifically to
+avoid that failure.
+
+This module exists so that the research question of which fusion rule to
+use is visible in the code as an open, tracked decision, rather than
+silently resolved by whichever rule happened to be easiest to implement.
+It is not wired into the experiment runner, and selecting it in a
+configuration file is expected to raise NotImplementedError, until
+research/literature_review.md and theory/estimator_model.md have
+established which formulation to use and why.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+
+
+class CovarianceIntersectionEstimator:
+    """Not yet implemented. See the module docstring above."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        raise NotImplementedError(
+            "CovarianceIntersectionEstimator is a documented placeholder. "
+            "Its fusion rule is STATUS: LITERATURE-DEPENDENT and has not yet "
+            "been chosen. See research/literature_review.md and "
+            "theory/estimator_model.md."
+        )
+
+    def predict(self, dt: float) -> None:
+        raise NotImplementedError
+
+    def update(self, observation) -> None:
+        raise NotImplementedError
+
+    def incorporate_peer_estimate(self, sender_id: str, mean: np.ndarray, covariance: np.ndarray) -> None:
+        raise NotImplementedError
+
+    def estimate(self) -> np.ndarray:
+        raise NotImplementedError
+
+    def covariance(self) -> np.ndarray:
+        raise NotImplementedError
+
+
+==================================================
+FILE: simulation\core\agent.py
+==================================================
+"""Agent abstraction.
+
+An agent is deliberately narrow. It knows its own identity, its own
+position, its own availability, and holds an estimator that produces its
+local estimate and local uncertainty. It has no attribute, method, or
+reference of any kind that exposes the true state of the world.
+
+The only two ways an agent can learn anything about the world are:
+
+  1. through an Observation passed to it by the sensing layer
+  2. through a peer estimate passed to it by the communication layer
+
+Anything that bypasses those two paths, such as an agent holding a direct
+reference to the World or to another agent, is a scientific validity bug,
+not a convenience shortcut. See tests/reproducibility/test_information_isolation.py.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from simulation.core.state import State2D
+
+if TYPE_CHECKING:
+    from simulation.estimation.base import Estimator
+    from simulation.sensing.observation import Observation
+
+
+class Agent:
+    """A single decentralised agent.
+
+    Parameters
+    ----------
+    agent_id:
+        A unique, stable identifier for this agent.
+    position:
+        The agent's own position. In the sprint 1 configuration this is
+        fixed for the whole run, since agents do not yet move.
+    estimator:
+        The estimator instance that holds this agent's local estimate and
+        local uncertainty, and that is updated from observations and, once
+        peer fusion is implemented, from peer estimates.
+    available:
+        Whether the agent is currently contributing to sensing,
+        communication and estimation. An unavailable agent represents a
+        failed or temporarily disconnected agent.
+    """
+
+    def __init__(
+        self,
+        agent_id: str,
+        position: State2D,
+        estimator: "Estimator",
+        available: bool = True,
+    ) -> None:
+        if not agent_id:
+            raise ValueError("agent_id must be a non-empty string")
+        self.agent_id = agent_id
+        self.position = position
+        self._estimator = estimator
+        self.available = available
+
+    @property
+    def estimate(self):
+        """This agent's current local state estimate."""
+        return self._estimator.estimate()
+
+    @property
+    def covariance(self):
+        """This agent's current local estimate covariance."""
+        return self._estimator.covariance()
+
+    def predict(self, dt: float) -> None:
+        """Advance this agent's estimator through the process model."""
+        self._estimator.predict(dt)
+
+    def receive_observation(self, observation: "Observation") -> None:
+        """Update this agent's local estimate from a direct measurement."""
+        if observation.agent_id != self.agent_id:
+            raise ValueError(
+                "an agent may only receive an observation addressed to itself, "
+                f"got observation for {observation.agent_id!r} at agent {self.agent_id!r}"
+            )
+        self._estimator.update(observation)
+
+    def receive_peer_estimate(self, sender_id: str, mean, covariance) -> None:
+        """Incorporate an estimate received from another agent through the
+        communication layer. Never called directly by another Agent object;
+        always routed through simulation.communication.channel.Channel.
+        """
+        self._estimator.incorporate_peer_estimate(sender_id, mean, covariance)
+
+
+==================================================
+FILE: experiments\runners\config.py
+==================================================
+"""Experiment configuration loading and validation.
+
+Every value that affects a scientific result is read from a configuration
+file, never hard coded in the runner or in simulator modules. This module
+is the single place where a configuration file is parsed and checked, so
+that a malformed or incomplete configuration fails loudly, before any
+simulation time is spent on it, rather than producing a silently wrong
+result.
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict
+
+import yaml
+
+
+class ConfigError(ValueError):
+    """Raised when a configuration file is missing a required field, or a
+    field has a value outside its valid range.
+    """
+
+
+def _require(section: Dict[str, Any], key: str, section_name: str) -> Any:
+    if key not in section:
+        raise ConfigError(f"missing required field '{key}' in section '{section_name}'")
+    return section[key]
+
+
+@dataclass(frozen=True)
+class ExperimentSection:
+    id: str
+    seed: int
+
+
+@dataclass(frozen=True)
+class SimulationSection:
+    dt: float
+    duration: float
+
+
+@dataclass(frozen=True)
+class TargetSection:
+    x: float
+    y: float
+
+
+@dataclass(frozen=True)
+class SwarmSection:
+    number_of_agents: int
+    spawn_radius: float
+
+
+@dataclass(frozen=True)
+class SensingSection:
+    measurement_noise: float
+
+
+@dataclass(frozen=True)
+class CommunicationSection:
+    range: float
+    packet_loss_probability: float
+    latency: float
+    enable_fusion: bool
+
+
+@dataclass(frozen=True)
+class EstimationSection:
+    method: str
+    initial_covariance: float
+    process_noise: float
+
+
+@dataclass(frozen=True)
+class Config:
+    experiment: ExperimentSection
+    simulation: SimulationSection
+    target: TargetSection
+    swarm: SwarmSection
+    sensing: SensingSection
+    communication: CommunicationSection
+    estimation: EstimationSection
+    source_path: Path
+
+
+_KNOWN_ESTIMATION_METHODS = {"reference_kalman"}
+
+
+def load_config(path: str) -> Config:
+    """Load and validate an experiment configuration file. Raises
+    ConfigError with a specific message on any missing or invalid field.
+    """
+    config_path = Path(path)
+    if not config_path.exists():
+        raise ConfigError(f"configuration file not found: {config_path}")
+
+    with open(config_path, "r") as f:
+        raw = yaml.safe_load(f)
+
+    if not isinstance(raw, dict):
+        raise ConfigError(f"configuration file must contain a mapping at the top level: {config_path}")
+
+    experiment_raw = _require(raw, "experiment", "top level")
+    simulation_raw = _require(raw, "simulation", "top level")
+    target_raw = _require(raw, "target", "top level")
+    swarm_raw = _require(raw, "swarm", "top level")
+    sensing_raw = _require(raw, "sensing", "top level")
+    communication_raw = _require(raw, "communication", "top level")
+    estimation_raw = _require(raw, "estimation", "top level")
+
+    experiment = ExperimentSection(
+        id=str(_require(experiment_raw, "id", "experiment")),
+        seed=int(_require(experiment_raw, "seed", "experiment")),
+    )
+
+    dt = float(_require(simulation_raw, "dt", "simulation"))
+    duration = float(_require(simulation_raw, "duration", "simulation"))
+    if not (math.isfinite(dt) and dt > 0):
+        raise ConfigError(f"simulation.dt must be a finite positive number, got {dt!r}")
+    if not (math.isfinite(duration) and duration > 0):
+        raise ConfigError(f"simulation.duration must be a finite positive number, got {duration!r}")
+    simulation = SimulationSection(dt=dt, duration=duration)
+
+    target = TargetSection(
+        x=float(_require(target_raw, "x", "target")),
+        y=float(_require(target_raw, "y", "target")),
+    )
+
+    number_of_agents = int(_require(swarm_raw, "number_of_agents", "swarm"))
+    if number_of_agents < 1:
+        raise ConfigError(f"swarm.number_of_agents must be at least 1, got {number_of_agents!r}")
+    spawn_radius = float(_require(swarm_raw, "spawn_radius", "swarm"))
+    if spawn_radius < 0:
+        raise ConfigError(f"swarm.spawn_radius must not be negative, got {spawn_radius!r}")
+    swarm = SwarmSection(number_of_agents=number_of_agents, spawn_radius=spawn_radius)
+
+    measurement_noise = float(_require(sensing_raw, "measurement_noise", "sensing"))
+    if measurement_noise < 0:
+        raise ConfigError(f"sensing.measurement_noise must not be negative, got {measurement_noise!r}")
+    sensing = SensingSection(measurement_noise=measurement_noise)
+
+    comm_range = float(_require(communication_raw, "range", "communication"))
+    if comm_range < 0:
+        raise ConfigError(f"communication.range must not be negative, got {comm_range!r}")
+    packet_loss_probability = float(_require(communication_raw, "packet_loss_probability", "communication"))
+    if not (0.0 <= packet_loss_probability <= 1.0):
+        raise ConfigError(
+            f"communication.packet_loss_probability must be in [0, 1], got {packet_loss_probability!r}"
+        )
+    latency = float(_require(communication_raw, "latency", "communication"))
+    if latency < 0:
+        raise ConfigError(f"communication.latency must not be negative, got {latency!r}")
+    enable_fusion = bool(communication_raw.get("enable_fusion", False))
+    communication = CommunicationSection(
+        range=comm_range,
+        packet_loss_probability=packet_loss_probability,
+        latency=latency,
+        enable_fusion=enable_fusion,
+    )
+
+    method = str(_require(estimation_raw, "method", "estimation"))
+    if method not in _KNOWN_ESTIMATION_METHODS:
+        raise ConfigError(
+            f"estimation.method {method!r} is not implemented. "
+            f"Known methods: {sorted(_KNOWN_ESTIMATION_METHODS)}"
+        )
+    initial_covariance = float(_require(estimation_raw, "initial_covariance", "estimation"))
+    if initial_covariance <= 0:
+        raise ConfigError(f"estimation.initial_covariance must be positive, got {initial_covariance!r}")
+    process_noise = float(_require(estimation_raw, "process_noise", "estimation"))
+    if process_noise < 0:
+        raise ConfigError(f"estimation.process_noise must not be negative, got {process_noise!r}")
+    estimation = EstimationSection(
+        method=method,
+        initial_covariance=initial_covariance,
+        process_noise=process_noise,
+    )
+
+    if enable_fusion and method == "reference_kalman":
+        raise ConfigError(
+            "communication.enable_fusion is true, but estimation.method 'reference_kalman' "
+            "does not implement peer fusion. See simulation/estimation/reference_kalman.py "
+            "and simulation/estimation/covariance_intersection.py."
+        )
+
+    return Config(
+        experiment=experiment,
+        simulation=simulation,
+        target=target,
+        swarm=swarm,
+        sensing=sensing,
+        communication=communication,
+        estimation=estimation,
+        source_path=config_path,
+    )
+
+
+==================================================
+FILE: experiments\runners\run_experiment.py
+==================================================
+"""The experiment runner.
+
+Wires together the world, swarm, sensing, communication and estimation
+layers according to a configuration file, executes the simulation, and
+writes a complete, self describing experiment record: the configuration
+used, the software and hardware context, the trajectory of every agent's
+local estimate, the resulting metrics, and a manifest tying all of that
+together with the experiment's unique ID and the git commit it was run
+under.
+
+This module contains no scientific logic of its own. It only sequences
+calls into simulation/ and analysis/metrics/, in the order set out in
+simulation/README.md.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import platform
+import subprocess
+import sys
+from dataclasses import asdict
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List
+
+import numpy as np
+
+from analysis.metrics.covariance import covariance_trace
+from analysis.metrics.estimation_error import position_error, rmse
+from experiments.runners.config import Config, load_config
+from simulation.communication.channel import Channel
+from simulation.communication.graph import CommunicationGraph
+from simulation.communication.latency import FixedLatencyModel
+from simulation.communication.packet_loss import PacketLossModel
+from simulation.core.agent import Agent
+from simulation.core.state import State2D
+from simulation.core.swarm import Swarm
+from simulation.core.time import SimulationClock
+from simulation.core.world import World
+from simulation.estimation.reference_kalman import ReferenceKalmanFilter
+from simulation.sensing.observation_model import DirectGaussianObservationModel
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SOFTWARE_VERSION = "0.1.0"
+
+
+def _git_commit() -> str:
+    """The current git commit hash, or the literal string 'unknown' if this
+    is not a git repository or has no commits yet. Never fabricated.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return "unknown"
+    if result.returncode != 0:
+        return "unknown"
+    return result.stdout.strip()
+
+
+def build_world_and_agents(config: Config, rng_positions: np.random.Generator) -> World:
+    """Build the World and its Swarm from a validated configuration.
+
+    ASSUMPTION: agents are spawned uniformly at random within a square of
+    half width swarm.spawn_radius, centred on the origin, independent of
+    the target location. Agents do not move in sprint 1, so this initial
+    placement is fixed for the whole run.
+    """
+    swarm = Swarm()
+    for i in range(config.swarm.number_of_agents):
+        agent_id = f"agent_{i:03d}"
+        offset = rng_positions.uniform(
+            low=-config.swarm.spawn_radius, high=config.swarm.spawn_radius, size=2
+        )
+        position = State2D(x=float(offset[0]), y=float(offset[1]))
+        estimator = ReferenceKalmanFilter(
+            initial_mean=np.zeros(2),
+            initial_covariance=np.eye(2) * config.estimation.initial_covariance,
+            process_noise_covariance=np.eye(2) * config.estimation.process_noise,
+        )
+        swarm.add_agent(Agent(agent_id=agent_id, position=position, estimator=estimator))
+
+    clock = SimulationClock(dt=config.simulation.dt)
+    return World(
+        true_target_state=State2D(x=config.target.x, y=config.target.y),
+        swarm=swarm,
+        clock=clock,
+    )
+
+
+def run_simulation(config: Config) -> Dict[str, Any]:
+    """Execute one complete simulation run and return the raw trajectory
+    and communication statistics needed to write the experiment record.
+    Does not touch the filesystem.
+    """
+    seed_sequence = np.random.SeedSequence(config.experiment.seed)
+    seed_positions, seed_noise, seed_channel = seed_sequence.spawn(3)
+    rng_positions = np.random.default_rng(seed_positions)
+    rng_noise = np.random.default_rng(seed_noise)
+    rng_channel = np.random.default_rng(seed_channel)
+
+    world = build_world_and_agents(config, rng_positions)
+
+    observation_model = DirectGaussianObservationModel(
+        measurement_covariance=np.eye(2) * config.sensing.measurement_noise,
+        rng=rng_noise,
+    )
+    channel = Channel(
+        packet_loss_model=PacketLossModel(
+            loss_probability=config.communication.packet_loss_probability, rng=rng_channel
+        ),
+        latency_model=FixedLatencyModel(latency=config.communication.latency),
+    )
+
+    number_of_steps = int(round(config.simulation.duration / config.simulation.dt))
+    trajectory: List[Dict[str, Any]] = []
+
+    for _ in range(number_of_steps):
+        world.step()
+        current_time = world.clock.time
+
+        for agent in world.swarm.active_agents():
+            agent.predict(config.simulation.dt)
+            observation = observation_model.observe(
+                agent_id=agent.agent_id,
+                agent_position=agent.position,
+                true_state=world.true_target_state,
+                timestamp=current_time,
+            )
+            agent.receive_observation(observation)
+
+        graph = CommunicationGraph(
+            world.swarm.active_agents(), communication_range=config.communication.range
+        )
+        for agent in world.swarm.active_agents():
+            payload = {
+                "mean": agent.estimate.tolist(),
+                "covariance": agent.covariance.tolist(),
+            }
+            for neighbour_id in graph.neighbours(agent.agent_id):
+                channel.send(
+                    sender_id=agent.agent_id,
+                    receiver_id=neighbour_id,
+                    payload=payload,
+                    created_time=current_time,
+                    graph=graph,
+                )
+
+        delivered = channel.collect_deliverable(current_time=current_time)
+        for packet in delivered:
+            if config.communication.enable_fusion:
+                receiver = world.swarm.get_agent(packet.receiver_id)
+                mean = np.array(packet.payload["mean"])
+                covariance = np.array(packet.payload["covariance"])
+                receiver.receive_peer_estimate(packet.sender_id, mean, covariance)
+            # If fusion is disabled, the packet has still been generated,
+            # subjected to loss and latency, and delivered. Its content is
+            # simply not incorporated into the estimator. This exercises
+            # the full communication pipeline honestly, without pretending
+            # that an unresolved fusion rule has been chosen.
+
+        for agent in world.swarm.active_agents():
+            error = position_error(agent.estimate, world.true_target_state.as_array())
+            trajectory.append(
+                {
+                    "step": world.clock.step_index,
+                    "time": current_time,
+                    "agent_id": agent.agent_id,
+                    "estimate_x": float(agent.estimate[0]),
+                    "estimate_y": float(agent.estimate[1]),
+                    "position_error": error,
+                    "covariance_trace": covariance_trace(agent.covariance),
+                }
+            )
+
+    packet_loss_model = channel._packet_loss_model  # internal, read only, for reporting
+    communication_stats = {
+        "packets_generated": packet_loss_model.generated_count,
+        "packets_delivered": packet_loss_model.delivered_count,
+        "packets_lost": packet_loss_model.lost_count,
+        "realised_loss_rate": packet_loss_model.realised_loss_rate(),
+    }
+
+    return {"trajectory": trajectory, "communication_stats": communication_stats}
+
+
+def _compute_metrics(trajectory: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Per agent RMSE and final covariance trace, computed from the raw
+    trajectory. These are candidate diagnostic metrics, not the final
+    boundary criterion; see analysis/boundary_estimation.
+    """
+    by_agent: Dict[str, List[Dict[str, Any]]] = {}
+    for row in trajectory:
+        by_agent.setdefault(row["agent_id"], []).append(row)
+
+    metrics_rows = []
+    for agent_id, rows in sorted(by_agent.items()):
+        errors = [r["position_error"] for r in rows]
+        metrics_rows.append(
+            {
+                "agent_id": agent_id,
+                "rmse": rmse(errors),
+                "final_covariance_trace": rows[-1]["covariance_trace"],
+                "number_of_steps": len(rows),
+            }
+        )
+    return metrics_rows
+
+
+def _write_csv(path: Path, rows: List[Dict[str, Any]]) -> None:
+    if not rows:
+        raise ValueError(f"refusing to write an empty CSV file: {path}")
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def run(config_path: str, output_root: Path = REPO_ROOT / "experiments" / "raw") -> Path:
+    """Run one experiment end to end and write its complete record.
+
+    Raises FileExistsError if the experiment ID has already been used,
+    since raw experimental output is immutable and must never be
+    overwritten. Raises ConfigError, from experiments.runners.config, if
+    the configuration file is invalid.
+    """
+    config = load_config(config_path)
+    output_dir = Path(output_root) / config.experiment.id
+    if output_dir.exists():
+        raise FileExistsError(
+            f"experiment id {config.experiment.id!r} already has raw output at {output_dir}; "
+            "raw data is immutable, choose a new experiment id"
+        )
+
+    result = run_simulation(config)
+    trajectory = result["trajectory"]
+    metrics_rows = _compute_metrics(trajectory)
+
+    output_dir.mkdir(parents=True, exist_ok=False)
+
+    with open(config.source_path, "r") as f:
+        config_text = f.read()
+    (output_dir / "config.yaml").write_text(config_text)
+
+    timestamp_utc = datetime.now(timezone.utc).isoformat()
+    git_commit = _git_commit()
+
+    metadata = {
+        "timestamp_utc": timestamp_utc,
+        "git_commit": git_commit,
+        "software_version": SOFTWARE_VERSION,
+        "python_version": sys.version,
+        "platform": platform.platform(),
+        "numpy_version": np.__version__,
+    }
+    (output_dir / "metadata.json").write_text(json.dumps(metadata, indent=2))
+
+    _write_csv(output_dir / "trajectory.csv", trajectory)
+    _write_csv(output_dir / "metrics.csv", metrics_rows)
+
+    manifest = {
+        "experiment_id": config.experiment.id,
+        "git_commit": git_commit,
+        "configuration": config.source_path.name,
+        "seed": config.experiment.seed,
+        "hardware_version": "not_applicable_simulation_only",
+        "software_version": SOFTWARE_VERSION,
+        "timestamp_utc": timestamp_utc,
+        "dataset": {
+            "trajectory": "trajectory.csv",
+            "metrics": "metrics.csv",
+        },
+        "communication_stats": result["communication_stats"],
+        "status": "complete",
+    }
+    (output_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
+
+    manifests_dir = REPO_ROOT / "experiments" / "manifests"
+    manifests_dir.mkdir(parents=True, exist_ok=True)
+    (manifests_dir / f"{config.experiment.id}.json").write_text(json.dumps(manifest, indent=2))
+
+    return output_dir
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run a single AeroNet experiment from a configuration file.")
+    parser.add_argument("--config", required=True, help="path to an experiment configuration YAML file")
+    args = parser.parse_args()
+    output_dir = run(args.config)
+    print(f"experiment complete, output written to {output_dir}")
+
+
+if __name__ == "__main__":
+    main()
+
+
+==================================================
+FILE: research\literature_review.md
+==================================================
+# Literature Review
+
+Do not rely on memory for citations, every entry below must be traceable to a real, checkable
+source. Maintain a companion `references.bib` alongside this file once citations accumulate.
+
+## Sections
+
+1. Decentralised multi-agent systems
+2. Cooperative state estimation
+3. Multi-robot observability
+4. Information-theoretic sensing
+5. Communication-constrained estimation
+6. Communication-aware motion
+7. Active localisation
+8. Formation geometry
+9. Fault-tolerant swarm estimation
+10. Collective perception
+11. Critical phenomena in collective systems
+12. UAV swarm systems
+13. RF sensing and source localisation
+14. Existing experimental platforms
+15. Research gap
+
+## Paper record template
+
+For every important paper, record:
+
+```text
+Citation:
+Research question:
+System:
+Number of agents:
+Sensing modality:
+Communication model:
+Estimator:
+Control strategy:
+Experimental or simulated:
+Main result:
+Limitation:
+Relevance to AeroNet:
+```
+
+
+## 1. Decentralised multi-agent systems
+
+### [Author, Year], Title
+```text
+Citation:
+Research question:
+System:
+Number of agents:
+Sensing modality:
+Communication model:
+Estimator:
+Control strategy:
+Experimental or simulated:
+Main result:
+Limitation:
+Relevance to AeroNet:
+```
+
+## 2. Cooperative state estimation
+
+_(add entries using the template above)_
+
+## 3. Multi-robot observability
+
+## 4. Information-theoretic sensing
+
+## 5. Communication-constrained estimation
+
+## 6. Communication-aware motion
+
+## 7. Active localisation
+
+## 8. Formation geometry
+
+## 9. Fault-tolerant swarm estimation
+
+## 10. Collective perception
+
+## 11. Critical phenomena in collective systems
+
+## 12. UAV swarm systems
+
+## 13. RF sensing and source localisation
+
+## 14. Existing experimental platforms
+
+## 15. Research gap
+
+### Synthesis
+_What does the field currently agree on? Where is there active disagreement or an open problem?_
+
+### Positioning statement
+_One paragraph: where does AeroNet sit relative to this body of work?_
+
+
+==================================================
+FILE: theory\estimator_model.md
+==================================================
+# Estimator Model
+
+The estimator must be independently testable, do not hide it inside a controller.
+
+## Define
+
+- Local estimator
+- Distributed estimator
+- Consensus / fusion mechanism
+- Uncertainty representation
+- Measurement update
+- Prediction update
+- Communication update
+- Failure handling
+
+## Interfaces
+> _Define the exact inputs/outputs of the estimator module so it can be swapped and tested in
+> isolation (see `algorithms/estimators/` and `simulation/estimation/`)._
+
+## Validation plan
+> _How will this estimator be validated against ground truth before being trusted in an
+> experiment? (see `simulation/validation/`)_
