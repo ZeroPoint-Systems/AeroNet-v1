@@ -1,0 +1,167 @@
+{
+  "experiment": "AeroNet Lab v4",
+  "run_id_utc": "20261021T093229Z",
+  "seeds": [
+    20261020,
+    20261021,
+    20261022,
+    20261023,
+    20261024,
+    20261025,
+    20261026,
+    20261027,
+    20261028,
+    20261029,
+    20261030,
+    20261031,
+    20261032,
+    20261033,
+    20261034,
+    20261035,
+    20261036,
+    20261037,
+    20261038,
+    20261039
+  ],
+  "agents": 6,
+  "steps": 300,
+  "window": 5,
+  "packet_loss_probability": 0.1,
+  "delay_steps": [
+    1,
+    3
+  ],
+  "sensor_scales": [
+    0.45,
+    0.7,
+    1.0,
+    1.4,
+    2.0,
+    3.0
+  ],
+  "observation_probabilities": [
+    0.98,
+    0.9,
+    0.8,
+    0.68,
+    0.58,
+    0.48
+  ],
+  "policies": {
+    "none": {
+      "rmse": {
+        "mean": 1.9429858695127362,
+        "sd": 0.09353253543761836
+      },
+      "attempted_broadcasts": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "delivered_links": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "state_changing_fusions": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "mean_fusion_state_delta": {
+        "mean": 0.0,
+        "sd": 0.0
+      }
+    },
+    "periodic": {
+      "rmse": {
+        "mean": 1.584405677856621,
+        "sd": 0.04748936955476873
+      },
+      "attempted_broadcasts": {
+        "mean": 360.0,
+        "sd": 0.0
+      },
+      "delivered_links": {
+        "mean": 1615.85,
+        "sd": 12.196958205785744
+      },
+      "state_changing_fusions": {
+        "mean": 210.2,
+        "sd": 7.26636084983398
+      },
+      "mean_fusion_state_delta": {
+        "mean": 0.291839695109421,
+        "sd": 0.013868115406001746
+      }
+    },
+    "reactive": {
+      "rmse": {
+        "mean": 1.5868712084065957,
+        "sd": 0.05038793118620788
+      },
+      "attempted_broadcasts": {
+        "mean": 360.0,
+        "sd": 0.0
+      },
+      "delivered_links": {
+        "mean": 1605.8,
+        "sd": 12.142140624592042
+      },
+      "state_changing_fusions": {
+        "mean": 233.3,
+        "sd": 9.900026581569843
+      },
+      "mean_fusion_state_delta": {
+        "mean": 0.33023795849431115,
+        "sd": 0.02083190407962073
+      }
+    },
+    "predictive": {
+      "rmse": {
+        "mean": 1.5881392214237058,
+        "sd": 0.05215739847224526
+      },
+      "attempted_broadcasts": {
+        "mean": 360.0,
+        "sd": 0.0
+      },
+      "delivered_links": {
+        "mean": 1604.2,
+        "sd": 11.255875658610718
+      },
+      "state_changing_fusions": {
+        "mean": 227.0,
+        "sd": 8.879307701795106
+      },
+      "mean_fusion_state_delta": {
+        "mean": 0.32399531673207904,
+        "sd": 0.019384019492659815
+      }
+    }
+  },
+  "paired_rmse_comparisons": {
+    "periodic_minus_none": {
+      "mean_difference": -0.35858019165611543,
+      "approx_95_ci": [
+        -0.39944224433107667,
+        -0.3177181389811542
+      ],
+      "n": 20
+    },
+    "reactive_minus_none": {
+      "mean_difference": -0.35611466110614065,
+      "approx_95_ci": [
+        -0.38975515868090843,
+        -0.32247416353137287
+      ],
+      "n": 20
+    },
+    "predictive_minus_none": {
+      "mean_difference": -0.3548466480890303,
+      "approx_95_ci": [
+        -0.38827293095088267,
+        -0.321420365227178
+      ],
+      "n": 20
+    }
+  },
+  "interpretation_note": "Exploratory synthetic simulation. Confidence intervals are normal-approximation intervals over paired seed differences. They do not establish novelty or external validity."
+}

@@ -1,0 +1,17 @@
+{
+  "policy": "adaptive",
+  "seed": 20261029,
+  "trace_rows": 800,
+  "expected_trace_rows": 800,
+  "mean_position_error": 0.98361106973464,
+  "messages_sent_total": 73370,
+  "process_exit_codes": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "wall_time_seconds": 1.814,
+  "status": "PASS",
+  "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261029_adaptive\\agent_trace.csv"
+}

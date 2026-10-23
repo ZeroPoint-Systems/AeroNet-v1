@@ -1,0 +1,637 @@
+{
+  "source_functions": {
+    "predict_state": {
+      "start_line": 47,
+      "end_line": 53,
+      "source": "def predict_state(x, P, count=1):\n    x = np.array(x, dtype=float, copy=True)\n    P = np.array(P, dtype=float, copy=True)\n    for _ in range(count):\n        x = F @ x\n        P = symmetrise(F @ P @ F.T + Q)\n    return x, P"
+    },
+    "kalman_update": {
+      "start_line": 56,
+      "end_line": 64,
+      "source": "def kalman_update(x, P, observation, R):\n    innovation = observation - H @ x\n    S = symmetrise(H @ P @ H.T + R)\n    K = np.linalg.solve(S, H @ P).T\n    updated_x = x + K @ innovation\n    A = np.eye(4) - K @ H\n    updated_P = symmetrise(A @ P @ A.T + K @ R @ K.T)\n    nis = float(innovation.T @ np.linalg.solve(S, innovation))\n    return updated_x, updated_P, nis"
+    },
+    "covariance_intersection": {
+      "start_line": 67,
+      "end_line": 100,
+      "source": "def covariance_intersection(x1, P1, x2, P2):\n    \"\"\"Conservative track fusion without assuming independent estimates.\"\"\"\n    x1 = np.asarray(x1, dtype=float)\n    x2 = np.asarray(x2, dtype=float)\n    P1 = symmetrise(np.asarray(P1, dtype=float))\n    P2 = symmetrise(np.asarray(P2, dtype=float))\n\n    for name, x, P in ((\"first\", x1, P1), (\"second\", x2, P2)):\n        if x.shape != (4,) or P.shape != (4, 4):\n            raise ValueError(f\"Invalid {name} state or covariance shape\")\n        if not np.all(np.isfinite(x)) or not np.all(np.isfinite(P)):\n            raise ValueError(f\"Non-finite {name} state or covariance\")\n        try:\n            np.linalg.cholesky(P)\n        except np.linalg.LinAlgError as exc:\n            raise ValueError(f\"{name} covariance must be positive definite\") from exc\n\n    I1 = np.linalg.solve(P1, np.eye(4))\n    I2 = np.linalg.solve(P2, np.eye(4))\n    best = None\n\n    for w in np.linspace(0.0, 1.0, 21):\n        precision = symmetrise(w * I1 + (1.0 - w) * I2)\n        P = symmetrise(np.linalg.solve(precision, np.eye(4)))\n        sign, logdet = np.linalg.slogdet(P)\n        if sign <= 0 or not np.isfinite(logdet):\n            continue\n        x = P @ (w * I1 @ x1 + (1.0 - w) * I2 @ x2)\n        if best is None or logdet < best[0] - 1e-12:\n            best = (logdet, x, P, float(w))\n\n    if best is None:\n        raise RuntimeError(\"Covariance intersection found no valid solution\")\n    return best[1], best[2]"
+    },
+    "should_send": {
+      "start_line": 184,
+      "end_line": 205,
+      "source": "def should_send(policy, agent, t):\n    if policy == \"none\":\n        return False\n    if policy == \"periodic\":\n        return t % WINDOW == 0\n\n    window = t // WINDOW\n    window_end = min((window + 1) * WINDOW - 1, STEPS - 1)\n    if agent.last_sent_window == window:\n        return False\n\n    if policy == \"reactive\":\n        trigger = (\n            float(np.trace(agent.P[:2, :2])) > 3.0\n            or agent.nis > 5.0\n        )\n    elif policy == \"predictive\":\n        trigger = agent.risk > 1.15\n    else:\n        raise ValueError(f\"Unknown policy: {policy}\")\n\n    return trigger or t == window_end"
+    },
+    "run_trial": {
+      "start_line": 208,
+      "end_line": 296,
+      "source": "def run_trial(seed, policy):\n    if policy not in POLICIES:\n        raise ValueError(f\"Unknown policy: {policy}\")\n\n    truth, observations, loss_draws, delay_draws = make_world(seed)\n    agents = [Agent(i) for i in range(AGENTS)]\n    queue = []\n    attempted_broadcasts = 0\n    delivered_links = 0\n    total_fusions = 0\n    state_changing_fusions = 0\n    total_fusion_delta = 0.0\n    total_covariance_delta = 0.0\n    squared_error_sum = 0.0\n    error_count = 0\n\n    for t in range(STEPS):\n        for i, agent in enumerate(agents):\n            raw = observations[t, i]\n            observation = raw if np.all(np.isfinite(raw)) else None\n            agent.update(observation)\n\n        due = [message for message in queue if message[0] <= t]\n        queue = [message for message in queue if message[0] > t]\n\n        for _, sender, receiver, send_time, sent_x, sent_P in due:\n            recipient = agents[receiver]\n            age = t - send_time\n            incoming_x, incoming_P = predict_state(sent_x, sent_P, age)\n            before_x = recipient.x.copy()\n            before_P = recipient.P.copy()\n\n            recipient.x, recipient.P = covariance_intersection(\n                recipient.x, recipient.P, incoming_x, incoming_P\n            )\n\n            delta = float(np.linalg.norm(recipient.x - before_x))\n            covariance_delta = float(np.linalg.norm(recipient.P - before_P))\n            delivered_links += 1\n            total_fusions += 1\n            total_fusion_delta += delta\n            total_covariance_delta += covariance_delta\n\n            if delta > 1e-9 or covariance_delta > 1e-9:\n                state_changing_fusions += 1\n\n        estimates = np.array([agent.x[:2] for agent in agents])\n        errors = estimates - truth[t, :2]\n        squared_error_sum += float(np.sum(errors ** 2))\n        error_count += AGENTS\n\n        for sender, agent in enumerate(agents):\n            if not should_send(policy, agent, t):\n                continue\n\n            attempted_broadcasts += 1\n            agent.last_sent_window = t // WINDOW\n\n            for receiver in range(AGENTS):\n                if receiver == sender:\n                    continue\n                if loss_draws[t, sender, receiver] < PACKET_LOSS:\n                    continue\n\n                delivery_time = t + int(delay_draws[t, sender, receiver])\n                if delivery_time >= STEPS:\n                    continue\n\n                queue.append((\n                    delivery_time, sender, receiver, t,\n                    agent.x.copy(), agent.P.copy()\n                ))\n\n    return {\n        \"seed\": int(seed),\n        \"policy\": policy,\n        \"rmse\": math.sqrt(squared_error_sum / error_count),\n        \"attempted_broadcasts\": int(attempted_broadcasts),\n        \"delivered_links\": int(delivered_links),\n        \"total_fusions\": int(total_fusions),\n        \"state_changing_fusions\": int(state_changing_fusions),\n        \"mean_fusion_state_delta\": (\n            total_fusion_delta / total_fusions if total_fusions else 0.0\n        ),\n        \"mean_fusion_covariance_delta\": (\n            total_covariance_delta / total_fusions if total_fusions else 0.0\n        ),\n        \"observations_used\": int(sum(a.observations_used for a in agents)),\n    }"
+    }
+  },
+  "policy_results": {
+    "periodic": [
+      {
+        "rmse": 1.5387324482719738,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1617.0,
+        "total_fusions": 1617.0,
+        "state_changing_fusions": 210.0,
+        "mean_fusion_state_delta": 0.27440888232142374,
+        "mean_fusion_covariance_delta": 0.5675133312441183,
+        "observations_used": 1331.0
+      },
+      {
+        "rmse": 1.5955135402068632,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1596.0,
+        "total_fusions": 1596.0,
+        "state_changing_fusions": 206.0,
+        "mean_fusion_state_delta": 0.27837913055513713,
+        "mean_fusion_covariance_delta": 0.35423593506273204,
+        "observations_used": 1370.0
+      },
+      {
+        "rmse": 1.5635979052080693,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1604.0,
+        "total_fusions": 1604.0,
+        "state_changing_fusions": 231.0,
+        "mean_fusion_state_delta": 0.3197986982638972,
+        "mean_fusion_covariance_delta": 0.4023564609628695,
+        "observations_used": 1315.0
+      },
+      {
+        "rmse": 1.6887651291639187,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1611.0,
+        "total_fusions": 1611.0,
+        "state_changing_fusions": 206.0,
+        "mean_fusion_state_delta": 0.2894197825532963,
+        "mean_fusion_covariance_delta": 0.4104421685006091,
+        "observations_used": 1341.0
+      },
+      {
+        "rmse": 1.5966710723808122,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1618.0,
+        "total_fusions": 1618.0,
+        "state_changing_fusions": 215.0,
+        "mean_fusion_state_delta": 0.29622393959312354,
+        "mean_fusion_covariance_delta": 0.33801147302380197,
+        "observations_used": 1314.0
+      },
+      {
+        "rmse": 1.5589012133987101,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1590.0,
+        "total_fusions": 1590.0,
+        "state_changing_fusions": 216.0,
+        "mean_fusion_state_delta": 0.28863240201874607,
+        "mean_fusion_covariance_delta": 0.38607553611185275,
+        "observations_used": 1316.0
+      },
+      {
+        "rmse": 1.628752377464312,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1618.0,
+        "total_fusions": 1618.0,
+        "state_changing_fusions": 203.0,
+        "mean_fusion_state_delta": 0.27984523906423525,
+        "mean_fusion_covariance_delta": 0.3564236336402164,
+        "observations_used": 1326.0
+      },
+      {
+        "rmse": 1.5723109594169622,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1630.0,
+        "total_fusions": 1630.0,
+        "state_changing_fusions": 207.0,
+        "mean_fusion_state_delta": 0.300549811916838,
+        "mean_fusion_covariance_delta": 0.3778184065148927,
+        "observations_used": 1318.0
+      },
+      {
+        "rmse": 1.591910116730698,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1628.0,
+        "total_fusions": 1628.0,
+        "state_changing_fusions": 219.0,
+        "mean_fusion_state_delta": 0.30430642399941293,
+        "mean_fusion_covariance_delta": 0.4013932742154135,
+        "observations_used": 1285.0
+      },
+      {
+        "rmse": 1.5234620786314206,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1626.0,
+        "total_fusions": 1626.0,
+        "state_changing_fusions": 205.0,
+        "mean_fusion_state_delta": 0.2726083484145382,
+        "mean_fusion_covariance_delta": 0.3377840064864959,
+        "observations_used": 1353.0
+      },
+      {
+        "rmse": 1.543158620970067,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1603.0,
+        "total_fusions": 1603.0,
+        "state_changing_fusions": 217.0,
+        "mean_fusion_state_delta": 0.29245984338839376,
+        "mean_fusion_covariance_delta": 0.3685985400652085,
+        "observations_used": 1329.0
+      },
+      {
+        "rmse": 1.5213193705638786,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1612.0,
+        "total_fusions": 1612.0,
+        "state_changing_fusions": 215.0,
+        "mean_fusion_state_delta": 0.3012943466982453,
+        "mean_fusion_covariance_delta": 0.38768371582856687,
+        "observations_used": 1310.0
+      },
+      {
+        "rmse": 1.5934846923906616,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1617.0,
+        "total_fusions": 1617.0,
+        "state_changing_fusions": 212.0,
+        "mean_fusion_state_delta": 0.318091033559153,
+        "mean_fusion_covariance_delta": 0.4665953093438595,
+        "observations_used": 1300.0
+      },
+      {
+        "rmse": 1.611502609500797,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1632.0,
+        "total_fusions": 1632.0,
+        "state_changing_fusions": 211.0,
+        "mean_fusion_state_delta": 0.2993410764454589,
+        "mean_fusion_covariance_delta": 0.38151426380830705,
+        "observations_used": 1318.0
+      },
+      {
+        "rmse": 1.5679845687235068,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1633.0,
+        "total_fusions": 1633.0,
+        "state_changing_fusions": 199.0,
+        "mean_fusion_state_delta": 0.2719908022797138,
+        "mean_fusion_covariance_delta": 0.3715437665668668,
+        "observations_used": 1357.0
+      },
+      {
+        "rmse": 1.687322645457187,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1619.0,
+        "total_fusions": 1619.0,
+        "state_changing_fusions": 207.0,
+        "mean_fusion_state_delta": 0.2823784221174971,
+        "mean_fusion_covariance_delta": 0.33814242075408824,
+        "observations_used": 1332.0
+      },
+      {
+        "rmse": 1.5235016828829042,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1608.0,
+        "total_fusions": 1608.0,
+        "state_changing_fusions": 202.0,
+        "mean_fusion_state_delta": 0.28766052684898125,
+        "mean_fusion_covariance_delta": 0.42609801840596156,
+        "observations_used": 1318.0
+      },
+      {
+        "rmse": 1.5776682548877983,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1624.0,
+        "total_fusions": 1624.0,
+        "state_changing_fusions": 206.0,
+        "mean_fusion_state_delta": 0.28371552565276154,
+        "mean_fusion_covariance_delta": 0.3698226360613866,
+        "observations_used": 1329.0
+      },
+      {
+        "rmse": 1.580395425338658,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1627.0,
+        "total_fusions": 1627.0,
+        "state_changing_fusions": 211.0,
+        "mean_fusion_state_delta": 0.2896956967461122,
+        "mean_fusion_covariance_delta": 0.35129748960801616,
+        "observations_used": 1325.0
+      },
+      {
+        "rmse": 1.623158845543218,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1604.0,
+        "total_fusions": 1604.0,
+        "state_changing_fusions": 206.0,
+        "mean_fusion_state_delta": 0.30599396975145415,
+        "mean_fusion_covariance_delta": 0.34944869700069525,
+        "observations_used": 1337.0
+      }
+    ],
+    "reactive": [
+      {
+        "rmse": 1.5831757143353045,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1606.0,
+        "total_fusions": 1606.0,
+        "state_changing_fusions": 231.0,
+        "mean_fusion_state_delta": 0.3139482974823256,
+        "mean_fusion_covariance_delta": 0.42489844292139944,
+        "observations_used": 1331.0
+      },
+      {
+        "rmse": 1.5638627936783605,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1590.0,
+        "total_fusions": 1590.0,
+        "state_changing_fusions": 213.0,
+        "mean_fusion_state_delta": 0.31132164626284853,
+        "mean_fusion_covariance_delta": 0.3547147539761564,
+        "observations_used": 1370.0
+      },
+      {
+        "rmse": 1.5754751083917637,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1583.0,
+        "total_fusions": 1583.0,
+        "state_changing_fusions": 234.0,
+        "mean_fusion_state_delta": 0.32414539218483385,
+        "mean_fusion_covariance_delta": 0.46696495241356367,
+        "observations_used": 1315.0
+      },
+      {
+        "rmse": 1.670928497562425,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1601.0,
+        "total_fusions": 1601.0,
+        "state_changing_fusions": 232.0,
+        "mean_fusion_state_delta": 0.3492198002051759,
+        "mean_fusion_covariance_delta": 0.4673750868504156,
+        "observations_used": 1341.0
+      },
+      {
+        "rmse": 1.6019263532830104,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1606.0,
+        "total_fusions": 1606.0,
+        "state_changing_fusions": 237.0,
+        "mean_fusion_state_delta": 0.32304397370180166,
+        "mean_fusion_covariance_delta": 0.3706018959193346,
+        "observations_used": 1314.0
+      },
+      {
+        "rmse": 1.5358171951298207,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1597.0,
+        "total_fusions": 1597.0,
+        "state_changing_fusions": 229.0,
+        "mean_fusion_state_delta": 0.3164454466081271,
+        "mean_fusion_covariance_delta": 0.3685396410302645,
+        "observations_used": 1316.0
+      },
+      {
+        "rmse": 1.640780072494295,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1610.0,
+        "total_fusions": 1610.0,
+        "state_changing_fusions": 239.0,
+        "mean_fusion_state_delta": 0.36017655767370294,
+        "mean_fusion_covariance_delta": 0.3747135429534955,
+        "observations_used": 1326.0
+      },
+      {
+        "rmse": 1.5446361956242747,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1632.0,
+        "total_fusions": 1632.0,
+        "state_changing_fusions": 239.0,
+        "mean_fusion_state_delta": 0.32693596467256253,
+        "mean_fusion_covariance_delta": 0.387508993413971,
+        "observations_used": 1318.0
+      },
+      {
+        "rmse": 1.51907286503229,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1619.0,
+        "total_fusions": 1619.0,
+        "state_changing_fusions": 242.0,
+        "mean_fusion_state_delta": 0.31690509547549156,
+        "mean_fusion_covariance_delta": 0.42363504686915054,
+        "observations_used": 1285.0
+      },
+      {
+        "rmse": 1.5120329538070216,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1611.0,
+        "total_fusions": 1611.0,
+        "state_changing_fusions": 223.0,
+        "mean_fusion_state_delta": 0.3096496859609693,
+        "mean_fusion_covariance_delta": 0.3585692188951258,
+        "observations_used": 1353.0
+      },
+      {
+        "rmse": 1.617084309017964,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1613.0,
+        "total_fusions": 1613.0,
+        "state_changing_fusions": 239.0,
+        "mean_fusion_state_delta": 0.3463630029484633,
+        "mean_fusion_covariance_delta": 0.37310499887437143,
+        "observations_used": 1329.0
+      },
+      {
+        "rmse": 1.606525105271094,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1583.0,
+        "total_fusions": 1583.0,
+        "state_changing_fusions": 233.0,
+        "mean_fusion_state_delta": 0.3601811045253612,
+        "mean_fusion_covariance_delta": 0.3924069504507849,
+        "observations_used": 1310.0
+      },
+      {
+        "rmse": 1.591534585291335,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1603.0,
+        "total_fusions": 1603.0,
+        "state_changing_fusions": 250.0,
+        "mean_fusion_state_delta": 0.3425365007266331,
+        "mean_fusion_covariance_delta": 0.4610467765124171,
+        "observations_used": 1300.0
+      },
+      {
+        "rmse": 1.5822520078145215,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1602.0,
+        "total_fusions": 1602.0,
+        "state_changing_fusions": 238.0,
+        "mean_fusion_state_delta": 0.3353199573832368,
+        "mean_fusion_covariance_delta": 0.37686070416715084,
+        "observations_used": 1318.0
+      },
+      {
+        "rmse": 1.4776018735567766,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1615.0,
+        "total_fusions": 1615.0,
+        "state_changing_fusions": 228.0,
+        "mean_fusion_state_delta": 0.3118875813188594,
+        "mean_fusion_covariance_delta": 0.507273125880762,
+        "observations_used": 1357.0
+      },
+      {
+        "rmse": 1.6478957684921163,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1608.0,
+        "total_fusions": 1608.0,
+        "state_changing_fusions": 236.0,
+        "mean_fusion_state_delta": 0.35785598742179425,
+        "mean_fusion_covariance_delta": 0.4594270055537506,
+        "observations_used": 1332.0
+      },
+      {
+        "rmse": 1.5793189485532635,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1607.0,
+        "total_fusions": 1607.0,
+        "state_changing_fusions": 229.0,
+        "mean_fusion_state_delta": 0.3041141051078882,
+        "mean_fusion_covariance_delta": 0.40165884037037725,
+        "observations_used": 1318.0
+      },
+      {
+        "rmse": 1.6440247710997247,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1598.0,
+        "total_fusions": 1598.0,
+        "state_changing_fusions": 215.0,
+        "mean_fusion_state_delta": 0.30374000230506926,
+        "mean_fusion_covariance_delta": 0.36865387816359524,
+        "observations_used": 1329.0
+      },
+      {
+        "rmse": 1.6248806605504253,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1610.0,
+        "total_fusions": 1610.0,
+        "state_changing_fusions": 253.0,
+        "mean_fusion_state_delta": 0.3698898565094029,
+        "mean_fusion_covariance_delta": 0.460057531480642,
+        "observations_used": 1325.0
+      },
+      {
+        "rmse": 1.6185983891461224,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1622.0,
+        "total_fusions": 1622.0,
+        "state_changing_fusions": 226.0,
+        "mean_fusion_state_delta": 0.3210792114116758,
+        "mean_fusion_covariance_delta": 0.3505652384683163,
+        "observations_used": 1337.0
+      }
+    ],
+    "predictive": [
+      {
+        "rmse": 1.5767416627413697,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1596.0,
+        "total_fusions": 1596.0,
+        "state_changing_fusions": 229.0,
+        "mean_fusion_state_delta": 0.31634169608458923,
+        "mean_fusion_covariance_delta": 0.4149803933862194,
+        "observations_used": 1331.0
+      },
+      {
+        "rmse": 1.5727243578233805,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1588.0,
+        "total_fusions": 1588.0,
+        "state_changing_fusions": 217.0,
+        "mean_fusion_state_delta": 0.3214741723587548,
+        "mean_fusion_covariance_delta": 0.3595672228202691,
+        "observations_used": 1370.0
+      },
+      {
+        "rmse": 1.5656461571684306,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1596.0,
+        "total_fusions": 1596.0,
+        "state_changing_fusions": 229.0,
+        "mean_fusion_state_delta": 0.32589176370359224,
+        "mean_fusion_covariance_delta": 0.47070077203230376,
+        "observations_used": 1315.0
+      },
+      {
+        "rmse": 1.7139523081280446,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1596.0,
+        "total_fusions": 1596.0,
+        "state_changing_fusions": 226.0,
+        "mean_fusion_state_delta": 0.3536883789029652,
+        "mean_fusion_covariance_delta": 0.47087052784482186,
+        "observations_used": 1341.0
+      },
+      {
+        "rmse": 1.5783108240791455,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1605.0,
+        "total_fusions": 1605.0,
+        "state_changing_fusions": 227.0,
+        "mean_fusion_state_delta": 0.3149445547773822,
+        "mean_fusion_covariance_delta": 0.3825971707560174,
+        "observations_used": 1314.0
+      },
+      {
+        "rmse": 1.5173834358503504,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1620.0,
+        "total_fusions": 1620.0,
+        "state_changing_fusions": 222.0,
+        "mean_fusion_state_delta": 0.2995167078902172,
+        "mean_fusion_covariance_delta": 0.3790690911128442,
+        "observations_used": 1316.0
+      },
+      {
+        "rmse": 1.6434367130441248,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1610.0,
+        "total_fusions": 1610.0,
+        "state_changing_fusions": 227.0,
+        "mean_fusion_state_delta": 0.33086186217629693,
+        "mean_fusion_covariance_delta": 0.35741378467931834,
+        "observations_used": 1326.0
+      },
+      {
+        "rmse": 1.5459172368930791,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1621.0,
+        "total_fusions": 1621.0,
+        "state_changing_fusions": 230.0,
+        "mean_fusion_state_delta": 0.3265918131262054,
+        "mean_fusion_covariance_delta": 0.4031907537260119,
+        "observations_used": 1318.0
+      },
+      {
+        "rmse": 1.5227259573653298,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1612.0,
+        "total_fusions": 1612.0,
+        "state_changing_fusions": 229.0,
+        "mean_fusion_state_delta": 0.2987692029768782,
+        "mean_fusion_covariance_delta": 0.4189684369484533,
+        "observations_used": 1285.0
+      },
+      {
+        "rmse": 1.54368905939487,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1598.0,
+        "total_fusions": 1598.0,
+        "state_changing_fusions": 222.0,
+        "mean_fusion_state_delta": 0.32223409257688224,
+        "mean_fusion_covariance_delta": 0.37992942808303826,
+        "observations_used": 1353.0
+      },
+      {
+        "rmse": 1.6294607472208662,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1605.0,
+        "total_fusions": 1605.0,
+        "state_changing_fusions": 231.0,
+        "mean_fusion_state_delta": 0.3376812262059422,
+        "mean_fusion_covariance_delta": 0.3692997835737946,
+        "observations_used": 1329.0
+      },
+      {
+        "rmse": 1.6120786204295101,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1576.0,
+        "total_fusions": 1576.0,
+        "state_changing_fusions": 211.0,
+        "mean_fusion_state_delta": 0.31595245857665455,
+        "mean_fusion_covariance_delta": 0.36584511731006697,
+        "observations_used": 1310.0
+      },
+      {
+        "rmse": 1.5714379903150497,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1613.0,
+        "total_fusions": 1613.0,
+        "state_changing_fusions": 237.0,
+        "mean_fusion_state_delta": 0.3305215090171438,
+        "mean_fusion_covariance_delta": 0.4621003629924079,
+        "observations_used": 1300.0
+      },
+      {
+        "rmse": 1.5818640121183252,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1610.0,
+        "total_fusions": 1610.0,
+        "state_changing_fusions": 230.0,
+        "mean_fusion_state_delta": 0.3250278537678821,
+        "mean_fusion_covariance_delta": 0.35939419998349964,
+        "observations_used": 1318.0
+      },
+      {
+        "rmse": 1.5010853905036068,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1613.0,
+        "total_fusions": 1613.0,
+        "state_changing_fusions": 227.0,
+        "mean_fusion_state_delta": 0.3111069147155003,
+        "mean_fusion_covariance_delta": 0.4806301856065158,
+        "observations_used": 1357.0
+      },
+      {
+        "rmse": 1.6423537531788168,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1609.0,
+        "total_fusions": 1609.0,
+        "state_changing_fusions": 235.0,
+        "mean_fusion_state_delta": 0.3538749463484687,
+        "mean_fusion_covariance_delta": 0.4404139193836276,
+        "observations_used": 1332.0
+      },
+      {
+        "rmse": 1.5594471384611515,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1603.0,
+        "total_fusions": 1603.0,
+        "state_changing_fusions": 223.0,
+        "mean_fusion_state_delta": 0.2960152904824425,
+        "mean_fusion_covariance_delta": 0.4010491925718057,
+        "observations_used": 1318.0
+      },
+      {
+        "rmse": 1.628674660722884,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1591.0,
+        "total_fusions": 1591.0,
+        "state_changing_fusions": 210.0,
+        "mean_fusion_state_delta": 0.2973645466710374,
+        "mean_fusion_covariance_delta": 0.3579232283190756,
+        "observations_used": 1329.0
+      },
+      {
+        "rmse": 1.6235731210332094,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1610.0,
+        "total_fusions": 1610.0,
+        "state_changing_fusions": 251.0,
+        "mean_fusion_state_delta": 0.3669405027289886,
+        "mean_fusion_covariance_delta": 0.4518839213870159,
+        "observations_used": 1325.0
+      },
+      {
+        "rmse": 1.6322812820025736,
+        "attempted_broadcasts": 360.0,
+        "delivered_links": 1612.0,
+        "total_fusions": 1612.0,
+        "state_changing_fusions": 227.0,
+        "mean_fusion_state_delta": 0.3351068415537574,
+        "mean_fusion_covariance_delta": 0.3618604100751493,
+        "observations_used": 1337.0
+      }
+    ]
+  }
+}

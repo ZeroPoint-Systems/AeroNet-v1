@@ -1,0 +1,4 @@
+"policy","seeds","mean_position_error","sd_between_seed_errors","mean_actual_messages_sent","all_trials_passed"
+"none","20","1.03748","0.05204","0","True"
+"periodic","20","1.038229","0.049864","2161.8","True"
+"adaptive","20","1.037111","0.053288","722.7","True"

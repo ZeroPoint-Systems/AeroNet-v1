@@ -1,0 +1,13 @@
+{
+  "agents_requested": 4,
+  "agents_exit_successfully": 0,
+  "steps_requested_per_agent": 100,
+  "trace_rows_written": 4,
+  "expected_trace_rows": 400,
+  "packet_loss_probability": 0.1,
+  "seed": 20261023,
+  "wall_time_seconds": 0.798,
+  "mean_position_error": 2.031827,
+  "csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\runs\\20261023T125245Z\\agent_trace.csv",
+  "status": "INCOMPLETE"
+}

@@ -1,0 +1,10 @@
+sensing_factor,packet_loss,rmse_limit,boundary_observed,minimum_observed_mean_broadcasts,selected_policy,selected_mean_rmse,selected_success_fraction,interpretation
+0.75,0.0,1.75,True,0.0,none,1.731968905848332,0.8,lowest tested communication cost meeting the criterion
+0.75,0.1,1.75,True,0.0,none,1.731968905848332,0.8,lowest tested communication cost meeting the criterion
+0.75,0.25,1.75,True,0.0,none,1.731968905848332,0.8,lowest tested communication cost meeting the criterion
+1.0,0.0,1.75,True,249.7,reactive,1.722533015703015,0.8,lowest tested communication cost meeting the criterion
+1.0,0.1,1.75,True,249.8,reactive,1.7338361740382466,0.6,lowest tested communication cost meeting the criterion
+1.0,0.25,1.75,True,249.7,reactive,1.748869424443249,0.5,lowest tested communication cost meeting the criterion
+1.35,0.0,1.75,True,360.0,periodic,1.746558672078082,0.5,lowest tested communication cost meeting the criterion
+1.35,0.1,1.75,False,,,,,no tested policy met the criterion
+1.35,0.25,1.75,False,,,,,no tested policy met the criterion

@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "C:\Users\Adil\aeronet\AeroNet\experiments\master_key\lab_v7\aeronet_lab_v7.py", line 322, in main
+    rows.append(normalise_result(
+                ~~~~~~~~~~~~~~~~^
+        result, seed, condition, policy, thresholds
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ))
+    ^
+  File "C:\Users\Adil\aeronet\AeroNet\experiments\master_key\lab_v7\aeronet_lab_v7.py", line 133, in normalise_result
+    raise RuntimeError(
+    ...<4 lines>...
+    )
+RuntimeError: run_trial returned an unrecognised result schema. Return type=dict; keys=['seed', 'policy', 'rmse', 'attempted_broadcasts', 'delivered_links', 'total_fusions', 'state_changing_fusions', 'mean_fusion_state_delta', 'mean_fusion_covariance_delta', 'observations_used']. No results were silently discarded.

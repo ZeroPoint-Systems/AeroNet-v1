@@ -1,0 +1,233 @@
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import math
+import multiprocessing as mp
+import random
+import socket
+import time
+from pathlib import Path
+
+
+def truth_at(t: int) -> tuple[float, float]:
+    return (
+        20.0 + 0.08 * t,
+        10.0 + 4.0 * math.sin(t * 0.045),
+    )
+
+
+def agent_process(agent_id, ports, steps, dt, loss, seed, policy, log_queue):
+    measurement_rng = random.Random(seed + agent_id * 1009)
+    network_rng = random.Random(seed + 1000003 + agent_id * 2003)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("127.0.0.1", ports[agent_id]))
+    sock.setblocking(False)
+
+    # Each agent maintains its own estimate and uncertainty.
+    estimate = [0.0, 0.0]
+    variance = [100.0, 100.0]
+    last_broadcast = -999
+    received = 0
+    sent = 0
+
+    try:
+        # Stagger starts to reduce UDP startup races.
+        time.sleep(0.03 * agent_id)
+
+        for step in range(steps):
+            x, y = truth_at(step)
+            measurement = [
+                x + measurement_rng.gauss(0.0, 2.0 + agent_id * 0.15),
+                y + measurement_rng.gauss(0.0, 2.0 + agent_id * 0.15),
+            ]
+
+            # Local measurement update: scalar Kalman-style fusion.
+            measurement_variance = (2.0 + agent_id * 0.15) ** 2
+            for axis in range(2):
+                prior_var = variance[axis] + 0.05
+                gain = prior_var / (prior_var + measurement_variance)
+                estimate[axis] += gain * (measurement[axis] - estimate[axis])
+                variance[axis] = (1.0 - gain) * prior_var
+
+            # Drain incoming UDP packets and fuse valid peer estimates.
+            while True:
+                try:
+                    payload, _ = sock.recvfrom(4096)
+                except BlockingIOError:
+                    break
+                except ConnectionResetError:
+                    # Windows may report ICMP port-unreachable as a UDP reset.
+                    # Treat it as a dropped datagram, not a fatal agent error.
+                    continue
+                try:
+                    msg = json.loads(payload.decode("utf-8"))
+                    if msg["agent_id"] == agent_id:
+                        continue
+                    peer_est = msg["estimate"]
+                    peer_var = msg["variance"]
+                    for axis in range(2):
+                        own_precision = 1.0 / max(variance[axis], 1e-9)
+                        peer_precision = 1.0 / max(float(peer_var[axis]), 1e-9)
+                        estimate[axis] = (
+                            own_precision * estimate[axis]
+                            + peer_precision * float(peer_est[axis])
+                        ) / (own_precision + peer_precision)
+                        variance[axis] = 1.0 / (own_precision + peer_precision)
+                    received += 1
+                except (ValueError, KeyError, TypeError, ZeroDivisionError):
+                    continue
+
+            if policy == "none":
+                send_now = False
+            elif policy == "periodic":
+                send_now = True
+            elif policy == "adaptive":
+                send_now = step - last_broadcast >= 3
+            else:
+                raise ValueError(f"Unknown policy: {policy}")
+
+            if send_now:
+                message = json.dumps({
+                    "agent_id": agent_id,
+                    "step": step,
+                    "estimate": estimate,
+                    "variance": variance,
+                }).encode("utf-8")
+                for peer_id, port in enumerate(ports):
+                    if peer_id == agent_id or network_rng.random() < loss:
+                        continue
+                    try:
+                        sock.sendto(message, ("127.0.0.1", port))
+                        sent += 1
+                    except OSError:
+                        pass
+                last_broadcast = step
+
+            error = math.sqrt(
+                (estimate[0] - x) ** 2 + (estimate[1] - y) ** 2
+            )
+            log_queue.put({
+                "step": step,
+                "agent_id": agent_id,
+                "truth_x": x,
+                "truth_y": y,
+                "measurement_x": measurement[0],
+                "measurement_y": measurement[1],
+                "estimate_x": estimate[0],
+                "estimate_y": estimate[1],
+                "error": error,
+                "sent_packets_total": sent,
+                "received_packets_total": received,
+                "variance_x": variance[0],
+                "variance_y": variance[1],
+            })
+            time.sleep(dt)
+    finally:
+        sock.close()
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="AeroNet independent-process UDP prototype"
+    )
+    parser.add_argument("--agents", type=int, default=4)
+    parser.add_argument("--steps", type=int, default=100)
+    parser.add_argument("--dt", type=float, default=0.02)
+    parser.add_argument("--loss", type=float, default=0.10)
+    parser.add_argument("--seed", type=int, default=20261023)
+    parser.add_argument("--policy", choices=["none", "periodic", "adaptive"], default="adaptive")
+    parser.add_argument("--output", type=Path, default=None)
+    args = parser.parse_args()
+
+    if args.agents < 2:
+        parser.error("--agents must be at least 2")
+    if args.steps < 1 or args.dt < 0 or not 0 <= args.loss < 1:
+        parser.error("Invalid steps, timestep or packet-loss probability")
+
+    output = args.output or (
+        Path(__file__).parent / "runs" /
+        time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    )
+    output.mkdir(parents=True, exist_ok=False)
+    csv_path = output / "agent_trace.csv"
+
+    base_port = 23100
+    ports = [base_port + i for i in range(args.agents)]
+    queue = mp.Queue()
+    error_queue = mp.Queue()
+    processes = [
+        mp.Process(
+            target=agent_process,
+            args=(i, ports, args.steps, args.dt, args.loss,
+                  args.seed, args.policy, queue),
+            name=f"aeronet-agent-{i}",
+        )
+        for i in range(args.agents)
+    ]
+
+    start = time.monotonic()
+    for process in processes:
+        process.start()
+
+    # Allow all independent agents to bind their UDP sockets before traffic.
+    time.sleep(0.25)
+
+    rows = []
+    expected = args.agents * args.steps
+    deadline = time.monotonic() + max(30.0, args.steps * args.dt * 5 + 10)
+    while len(rows) < expected and time.monotonic() < deadline:
+        try:
+            rows.append(queue.get(timeout=0.5))
+        except Exception:
+            if not any(p.is_alive() for p in processes):
+                break
+
+    for process in processes:
+        process.join(timeout=5)
+        if process.is_alive():
+            process.terminate()
+            process.join()
+
+    with csv_path.open("w", newline="", encoding="utf-8") as handle:
+        fields = [
+            "step", "agent_id", "truth_x", "truth_y",
+            "measurement_x", "measurement_y", "estimate_x", "estimate_y",
+            "error", "sent_packets_total", "received_packets_total",
+            "variance_x", "variance_y",
+        ]
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(sorted(rows, key=lambda r: (r["step"], r["agent_id"])))
+
+    successful = sum(p.exitcode == 0 for p in processes)
+    summary = {
+        "agents_requested": args.agents,
+        "agents_exit_successfully": successful,
+        "steps_requested_per_agent": args.steps,
+        "trace_rows_written": len(rows),
+        "expected_trace_rows": expected,
+        "packet_loss_probability": args.loss,
+        "policy": args.policy,
+        "seed": args.seed,
+        "wall_time_seconds": round(time.monotonic() - start, 3),
+        "mean_position_error": (
+            round(sum(r["error"] for r in rows) / len(rows), 6)
+            if rows else None
+        ),
+        "csv": str(csv_path.resolve()),
+        "status": "PASS" if len(rows) == expected and successful == args.agents else "INCOMPLETE",
+    }
+    (output / "summary.json").write_text(
+        json.dumps(summary, indent=2), encoding="utf-8"
+    )
+    print(json.dumps(summary, indent=2))
+
+    if summary["status"] != "PASS":
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    mp.freeze_support()
+    main()

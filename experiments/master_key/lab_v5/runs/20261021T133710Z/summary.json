@@ -1,0 +1,86 @@
+{
+  "experiment": "AeroNet Lab v5 event-triggered communication pilot",
+  "status": "exploratory synthetic simulation; not external validation",
+  "seeds": [
+    20261020,
+    20261021,
+    20261022,
+    20261023,
+    20261024,
+    20261025,
+    20261026,
+    20261027,
+    20261028,
+    20261029,
+    20261030,
+    20261031,
+    20261032,
+    20261033,
+    20261034,
+    20261035,
+    20261036,
+    20261037,
+    20261038,
+    20261039
+  ],
+  "agents": 6,
+  "steps": 300,
+  "policies": {
+    "none": {
+      "n": 20,
+      "rmse_mean": 1.9429858695127362,
+      "rmse_sd": 0.09353253543761836,
+      "broadcasts_mean": 0.0,
+      "delivered_links_mean": 0.0,
+      "state_changing_fusions_mean": 0.0
+    },
+    "periodic": {
+      "n": 20,
+      "rmse_mean": 1.584405677856621,
+      "rmse_sd": 0.04748936955476873,
+      "broadcasts_mean": 360.0,
+      "delivered_links_mean": 1615.85,
+      "state_changing_fusions_mean": 210.2
+    },
+    "reactive": {
+      "n": 20,
+      "rmse_mean": 1.737876909977221,
+      "rmse_sd": 0.03996540510013468,
+      "broadcasts_mean": 248.4,
+      "delivered_links_mean": 1109.8,
+      "state_changing_fusions_mean": 119.6
+    },
+    "predictive": {
+      "n": 20,
+      "rmse_mean": 1.772605418606966,
+      "rmse_sd": 0.04946435473414493,
+      "broadcasts_mean": 230.6,
+      "delivered_links_mean": 1031.35,
+      "state_changing_fusions_mean": 101.2
+    }
+  },
+  "paired_rmse_comparisons": {
+    "reactive_minus_periodic": {
+      "mean_difference": 0.15347123212060024,
+      "bootstrap_95_percentile_interval": [
+        0.13495047403721333,
+        0.17118391609589112
+      ],
+      "seeds_with_lower_rmse": 0,
+      "seeds_with_higher_rmse": 20,
+      "mean_broadcast_change_percent": -30.999999999999993
+    },
+    "predictive_minus_periodic": {
+      "mean_difference": 0.1881997407503453,
+      "bootstrap_95_percentile_interval": [
+        0.16709730578544518,
+        0.2102618621390176
+      ],
+      "seeds_with_lower_rmse": 0,
+      "seeds_with_higher_rmse": 20,
+      "mean_broadcast_change_percent": -35.94444444444444
+    }
+  },
+  "elapsed_seconds": 98.05,
+  "method_note": "Lab v5 removes the adaptive end-of-window fallback. Existing thresholds and simulation conditions are unchanged. These same seeds are exploratory, not a held-out confirmatory evaluation."
+}

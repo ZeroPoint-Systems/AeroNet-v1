@@ -1,0 +1,113 @@
+{
+  "experiment": {
+    "name": "AeroNet Lab v3 validation benchmark",
+    "synthetic_data": true,
+    "seeds": [
+      20261020,
+      20261021,
+      20261022,
+      20261023,
+      20261024,
+      20261025,
+      20261026,
+      20261027,
+      20261028,
+      20261029,
+      20261030,
+      20261031,
+      20261032,
+      20261033,
+      20261034,
+      20261035,
+      20261036,
+      20261037,
+      20261038,
+      20261039
+    ],
+    "agents": 6,
+    "steps": 300,
+    "window": 5,
+    "packet_loss_probability": 0.1,
+    "delay_steps": [
+      1,
+      3
+    ],
+    "policies": [
+      "none",
+      "periodic",
+      "reactive",
+      "predictive"
+    ],
+    "metric": "RMSE of each agent's estimated position against synthetic ground truth, after deliveries at each step"
+  },
+  "policy_summary": {
+    "none": {
+      "n": 20,
+      "mean_rmse": 1.2777291893215654,
+      "sd_rmse": 0.024799381660619575,
+      "mean_attempted_broadcasts": 0.0,
+      "mean_delivered_links": 0.0,
+      "mean_delivery_rate": 0.0,
+      "mean_state_changing_fusions": 0.0,
+      "mean_fusion_state_delta": 0.0
+    },
+    "periodic": {
+      "n": 20,
+      "mean_rmse": 1.2777291893215645,
+      "sd_rmse": 0.024799381660619527,
+      "mean_attempted_broadcasts": 360.0,
+      "mean_delivered_links": 1615.85,
+      "mean_delivery_rate": 0.8976944444444446,
+      "mean_state_changing_fusions": 0.0,
+      "mean_fusion_state_delta": 3.122041077875492e-14
+    },
+    "reactive": {
+      "n": 20,
+      "mean_rmse": 1.2777291893215659,
+      "sd_rmse": 0.024799381660619797,
+      "mean_attempted_broadcasts": 360.0,
+      "mean_delivered_links": 1600.85,
+      "mean_delivery_rate": 0.8893611111111112,
+      "mean_state_changing_fusions": 0.0,
+      "mean_fusion_state_delta": 3.2566547174750074e-14
+    },
+    "predictive": {
+      "n": 20,
+      "mean_rmse": 1.2777291893215659,
+      "sd_rmse": 0.024799381660619655,
+      "mean_attempted_broadcasts": 360.0,
+      "mean_delivered_links": 1601.3,
+      "mean_delivery_rate": 0.8896111111111111,
+      "mean_state_changing_fusions": 0.0,
+      "mean_fusion_state_delta": 3.267562295869183e-14
+    }
+  },
+  "paired_comparisons_against_none": {
+    "periodic_minus_none": {
+      "mean_rmse_difference": -7.438494264988549e-16,
+      "approx_95_ci_low": -1.4130797680683803e-15,
+      "approx_95_ci_high": -7.461908492932939e-17,
+      "fraction_seeds_policy_better": 0.6
+    },
+    "reactive_minus_none": {
+      "mean_rmse_difference": 6.439293542825908e-16,
+      "approx_95_ci_low": -9.443965123456808e-17,
+      "approx_95_ci_high": 1.3822983597997495e-15,
+      "fraction_seeds_policy_better": 0.4
+    },
+    "predictive_minus_none": {
+      "mean_rmse_difference": 5.884182030513329e-16,
+      "approx_95_ci_low": -2.694658155511402e-16,
+      "approx_95_ci_high": 1.4463022216538061e-15,
+      "fraction_seeds_policy_better": 0.35
+    }
+  },
+  "limitations": [
+    "Synthetic constant-velocity model with stochastic acceleration.",
+    "All agents observe the same target, with independent sensor noise.",
+    "The predictive policy is a fixed heuristic, not a trained predictor.",
+    "Pairwise covariance intersection is applied repeatedly; cross-correlation handling requires further study.",
+    "The paired confidence intervals are approximate.",
+    "This is not a real-drone or real-dataset validation."
+  ]
+}

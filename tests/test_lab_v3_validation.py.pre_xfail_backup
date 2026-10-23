@@ -1,0 +1,98 @@
+﻿import importlib.util
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+
+SCRIPT = (
+    Path(__file__).resolve().parents[1]
+    / "experiments"
+    / "master_key"
+    / "lab_v3"
+    / "aeronet_lab_v3.py"
+)
+
+SPEC = importlib.util.spec_from_file_location("aeronet_lab_v3", SCRIPT)
+LAB = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(LAB)
+
+
+def test_covariance_intersection_returns_valid_covariance():
+    x1 = np.array([0.0, 0.0, 1.0, 0.0])
+    x2 = np.array([2.0, -1.0, 0.5, 0.2])
+    P1 = np.diag([2.0, 3.0, 4.0, 5.0])
+    P2 = np.diag([1.0, 2.0, 3.0, 4.0])
+
+    x, P = LAB.covariance_intersection(x1, P1, x2, P2)
+
+    assert x.shape == (4,)
+    assert P.shape == (4, 4)
+    assert np.all(np.isfinite(x))
+    assert np.all(np.isfinite(P))
+    assert np.allclose(P, P.T, atol=1e-10)
+    assert np.min(np.linalg.eigvalsh(P)) > 0.0
+
+
+def test_covariance_intersection_rejects_non_positive_definite_covariance():
+    x = np.zeros(4)
+    bad_P = np.diag([1.0, 1.0, 1.0, 0.0])
+
+    with pytest.raises(ValueError):
+        LAB.covariance_intersection(x, bad_P, x, np.eye(4))
+
+
+def test_covariance_intersection_responds_to_different_estimates():
+    x1 = np.array([0.0, 0.0, 0.0, 0.0])
+    x2 = np.array([5.0, 2.0, 1.0, -1.0])
+    P1 = np.diag([2.0, 2.0, 3.0, 3.0])
+    P2 = np.diag([2.0, 2.0, 3.0, 3.0])
+
+    fused_x, fused_P = LAB.covariance_intersection(x1, P1, x2, P2)
+
+    # With equal covariance determinants, the documented grid tie-break
+    # selects the first minimum encountered, which is the second estimate.
+    assert np.allclose(fused_x, x2)
+    assert np.allclose(fused_P, P2)
+
+
+def test_network_communication_changes_some_evaluated_estimates():
+    result = LAB.run_trial(20261020, "periodic")
+
+    assert result["attempted_broadcasts"] > 0
+    assert result["delivered_links"] > 0
+    assert result["state_changing_fusions"] > 0
+    assert result["mean_fusion_state_delta"] > 0.0
+
+
+def test_no_communication_has_no_deliveries_or_fusions():
+    result = LAB.run_trial(20261020, "none")
+
+    assert result["attempted_broadcasts"] == 0
+    assert result["delivered_links"] == 0
+    assert result["state_changing_fusions"] == 0
+    assert result["mean_fusion_state_delta"] == 0.0
+
+
+def test_trial_is_reproducible_for_fixed_seed_and_policy():
+    first = LAB.run_trial(20261021, "periodic")
+    second = LAB.run_trial(20261021, "periodic")
+
+    assert first == second
+
+
+def test_communicating_policies_use_equal_broadcast_budgets():
+    results = [
+        LAB.run_trial(20261022, policy)
+        for policy in ("periodic", "reactive", "predictive")
+    ]
+
+    counts = [item["attempted_broadcasts"] for item in results]
+    assert counts == [LAB.AGENTS * (LAB.STEPS // LAB.WINDOW)] * 3
+
+
+def test_rmse_is_finite_and_non_negative():
+    for policy in LAB.POLICIES:
+        result = LAB.run_trial(20261023, policy)
+        assert np.isfinite(result["rmse"])
+        assert result["rmse"] >= 0.0

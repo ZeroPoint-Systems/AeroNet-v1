@@ -1,0 +1,4 @@
+policy,seeds,mean_position_error_across_seeds,sd_between_seed_errors,mean_messages_sent_total,all_trials_passed
+none,20,1.0374802347607792,0.05203952159825404,0,True
+periodic,20,1.0382290285227913,0.04986354429632487,216936.65,True
+adaptive,20,1.0371113641646335,0.05328779537674276,72834.15,True

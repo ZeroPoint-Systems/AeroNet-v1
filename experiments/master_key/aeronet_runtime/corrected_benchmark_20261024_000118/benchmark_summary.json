@@ -1,0 +1,1059 @@
+{
+  "configuration": {
+    "agents": 4,
+    "steps": 200,
+    "dt": 0.005,
+    "loss": 0.1,
+    "seed": 20261023,
+    "batch_seeds": 20,
+    "output": "experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118"
+  },
+  "policies": [
+    {
+      "policy": "none",
+      "seeds": 20,
+      "mean_position_error_across_seeds": 1.0374802347607792,
+      "sd_between_seed_errors": 0.05203952159825404,
+      "mean_messages_sent_total": 0,
+      "all_trials_passed": true
+    },
+    {
+      "policy": "periodic",
+      "seeds": 20,
+      "mean_position_error_across_seeds": 1.0382290285227913,
+      "sd_between_seed_errors": 0.04986354429632487,
+      "mean_messages_sent_total": 216936.65,
+      "all_trials_passed": true
+    },
+    {
+      "policy": "adaptive",
+      "seeds": 20,
+      "mean_position_error_across_seeds": 1.0371113641646335,
+      "sd_between_seed_errors": 0.05328779537674276,
+      "mean_messages_sent_total": 72834.15,
+      "all_trials_passed": true
+    }
+  ],
+  "trials": [
+    {
+      "policy": "none",
+      "seed": 20261023,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0549059644045922,
+      "messages_sent_total": 0,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.616,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261023_none\\agent_trace.csv"
+    },
+    {
+      "policy": "periodic",
+      "seed": 20261023,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0510909826956794,
+      "messages_sent_total": 214369,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.823,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261023_periodic\\agent_trace.csv"
+    },
+    {
+      "policy": "adaptive",
+      "seed": 20261023,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0551945646313707,
+      "messages_sent_total": 71103,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 2.31,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261023_adaptive\\agent_trace.csv"
+    },
+    {
+      "policy": "none",
+      "seed": 20261024,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 0.9906628044122956,
+      "messages_sent_total": 0,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.788,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261024_none\\agent_trace.csv"
+    },
+    {
+      "policy": "periodic",
+      "seed": 20261024,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 0.9909797325747138,
+      "messages_sent_total": 215808,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.854,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261024_periodic\\agent_trace.csv"
+    },
+    {
+      "policy": "adaptive",
+      "seed": 20261024,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 0.9951677296925968,
+      "messages_sent_total": 71817,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.866,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261024_adaptive\\agent_trace.csv"
+    },
+    {
+      "policy": "none",
+      "seed": 20261025,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 0.9816432965202023,
+      "messages_sent_total": 0,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.841,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261025_none\\agent_trace.csv"
+    },
+    {
+      "policy": "periodic",
+      "seed": 20261025,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0129388513582094,
+      "messages_sent_total": 218727,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.733,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261025_periodic\\agent_trace.csv"
+    },
+    {
+      "policy": "adaptive",
+      "seed": 20261025,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 0.9790418361743466,
+      "messages_sent_total": 73952,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.77,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261025_adaptive\\agent_trace.csv"
+    },
+    {
+      "policy": "none",
+      "seed": 20261026,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.103571245658839,
+      "messages_sent_total": 0,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.557,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261026_none\\agent_trace.csv"
+    },
+    {
+      "policy": "periodic",
+      "seed": 20261026,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0961300643781546,
+      "messages_sent_total": 216775,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.564,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261026_periodic\\agent_trace.csv"
+    },
+    {
+      "policy": "adaptive",
+      "seed": 20261026,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0961300643781546,
+      "messages_sent_total": 73568,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.674,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261026_adaptive\\agent_trace.csv"
+    },
+    {
+      "policy": "none",
+      "seed": 20261027,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.1060533238938515,
+      "messages_sent_total": 0,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.574,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261027_none\\agent_trace.csv"
+    },
+    {
+      "policy": "periodic",
+      "seed": 20261027,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.1013980017364549,
+      "messages_sent_total": 214335,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.549,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261027_periodic\\agent_trace.csv"
+    },
+    {
+      "policy": "adaptive",
+      "seed": 20261027,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.1075312506153436,
+      "messages_sent_total": 72584,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.612,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261027_adaptive\\agent_trace.csv"
+    },
+    {
+      "policy": "none",
+      "seed": 20261028,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0747787164910192,
+      "messages_sent_total": 0,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.758,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261028_none\\agent_trace.csv"
+    },
+    {
+      "policy": "periodic",
+      "seed": 20261028,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0758550555212123,
+      "messages_sent_total": 217932,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.633,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261028_periodic\\agent_trace.csv"
+    },
+    {
+      "policy": "adaptive",
+      "seed": 20261028,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0758550555212123,
+      "messages_sent_total": 72604,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.669,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261028_adaptive\\agent_trace.csv"
+    },
+    {
+      "policy": "none",
+      "seed": 20261029,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 0.9783652397745263,
+      "messages_sent_total": 0,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.612,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261029_none\\agent_trace.csv"
+    },
+    {
+      "policy": "periodic",
+      "seed": 20261029,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.003374535671274,
+      "messages_sent_total": 217302,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.978,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261029_periodic\\agent_trace.csv"
+    },
+    {
+      "policy": "adaptive",
+      "seed": 20261029,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 0.98361106973464,
+      "messages_sent_total": 73370,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.814,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261029_adaptive\\agent_trace.csv"
+    },
+    {
+      "policy": "none",
+      "seed": 20261030,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.014332439287489,
+      "messages_sent_total": 0,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.813,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261030_none\\agent_trace.csv"
+    },
+    {
+      "policy": "periodic",
+      "seed": 20261030,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.007894707822347,
+      "messages_sent_total": 218703,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.804,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261030_periodic\\agent_trace.csv"
+    },
+    {
+      "policy": "adaptive",
+      "seed": 20261030,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0086559659686476,
+      "messages_sent_total": 74344,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.796,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261030_adaptive\\agent_trace.csv"
+    },
+    {
+      "policy": "none",
+      "seed": 20261031,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.027991872193053,
+      "messages_sent_total": 0,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.75,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261031_none\\agent_trace.csv"
+    },
+    {
+      "policy": "periodic",
+      "seed": 20261031,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0235339571576636,
+      "messages_sent_total": 218229,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.797,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261031_periodic\\agent_trace.csv"
+    },
+    {
+      "policy": "adaptive",
+      "seed": 20261031,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0227369210252208,
+      "messages_sent_total": 72537,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.846,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261031_adaptive\\agent_trace.csv"
+    },
+    {
+      "policy": "none",
+      "seed": 20261032,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.124606946918827,
+      "messages_sent_total": 0,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.78,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261032_none\\agent_trace.csv"
+    },
+    {
+      "policy": "periodic",
+      "seed": 20261032,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.1276978144473775,
+      "messages_sent_total": 217385,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.727,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261032_periodic\\agent_trace.csv"
+    },
+    {
+      "policy": "adaptive",
+      "seed": 20261032,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.135292367710768,
+      "messages_sent_total": 72897,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.907,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261032_adaptive\\agent_trace.csv"
+    },
+    {
+      "policy": "none",
+      "seed": 20261033,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0264345891736244,
+      "messages_sent_total": 0,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.956,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261033_none\\agent_trace.csv"
+    },
+    {
+      "policy": "periodic",
+      "seed": 20261033,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0283122463668057,
+      "messages_sent_total": 219007,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.94,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261033_periodic\\agent_trace.csv"
+    },
+    {
+      "policy": "adaptive",
+      "seed": 20261033,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0246468196688394,
+      "messages_sent_total": 73506,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.875,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261033_adaptive\\agent_trace.csv"
+    },
+    {
+      "policy": "none",
+      "seed": 20261034,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0314731322649462,
+      "messages_sent_total": 0,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.781,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261034_none\\agent_trace.csv"
+    },
+    {
+      "policy": "periodic",
+      "seed": 20261034,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0347818628104728,
+      "messages_sent_total": 215516,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.8,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261034_periodic\\agent_trace.csv"
+    },
+    {
+      "policy": "adaptive",
+      "seed": 20261034,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0347818628104728,
+      "messages_sent_total": 72651,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.793,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261034_adaptive\\agent_trace.csv"
+    },
+    {
+      "policy": "none",
+      "seed": 20261035,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.09923902887924,
+      "messages_sent_total": 0,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.725,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261035_none\\agent_trace.csv"
+    },
+    {
+      "policy": "periodic",
+      "seed": 20261035,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.092164232029223,
+      "messages_sent_total": 217163,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.791,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261035_periodic\\agent_trace.csv"
+    },
+    {
+      "policy": "adaptive",
+      "seed": 20261035,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0936886067522684,
+      "messages_sent_total": 73391,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.781,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261035_adaptive\\agent_trace.csv"
+    },
+    {
+      "policy": "none",
+      "seed": 20261036,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 0.9118102187029107,
+      "messages_sent_total": 0,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.793,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261036_none\\agent_trace.csv"
+    },
+    {
+      "policy": "periodic",
+      "seed": 20261036,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 0.904821721865756,
+      "messages_sent_total": 213874,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.802,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261036_periodic\\agent_trace.csv"
+    },
+    {
+      "policy": "adaptive",
+      "seed": 20261036,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 0.904821721865756,
+      "messages_sent_total": 71224,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.849,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261036_adaptive\\agent_trace.csv"
+    },
+    {
+      "policy": "none",
+      "seed": 20261037,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0466157709831678,
+      "messages_sent_total": 0,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.727,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261037_none\\agent_trace.csv"
+    },
+    {
+      "policy": "periodic",
+      "seed": 20261037,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0470864491874867,
+      "messages_sent_total": 215822,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.787,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261037_periodic\\agent_trace.csv"
+    },
+    {
+      "policy": "adaptive",
+      "seed": 20261037,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0502847512307512,
+      "messages_sent_total": 71810,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.833,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261037_adaptive\\agent_trace.csv"
+    },
+    {
+      "policy": "none",
+      "seed": 20261038,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0001260998198787,
+      "messages_sent_total": 0,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.815,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261038_none\\agent_trace.csv"
+    },
+    {
+      "policy": "periodic",
+      "seed": 20261038,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 0.9930147246997104,
+      "messages_sent_total": 216527,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.854,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261038_periodic\\agent_trace.csv"
+    },
+    {
+      "policy": "adaptive",
+      "seed": 20261038,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 0.9927886214638033,
+      "messages_sent_total": 72299,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.829,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261038_adaptive\\agent_trace.csv"
+    },
+    {
+      "policy": "none",
+      "seed": 20261039,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0374341554172681,
+      "messages_sent_total": 0,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.757,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261039_none\\agent_trace.csv"
+    },
+    {
+      "policy": "periodic",
+      "seed": 20261039,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0408466397016014,
+      "messages_sent_total": 218087,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.815,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261039_periodic\\agent_trace.csv"
+    },
+    {
+      "policy": "adaptive",
+      "seed": 20261039,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.038669401854895,
+      "messages_sent_total": 73280,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.779,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261039_adaptive\\agent_trace.csv"
+    },
+    {
+      "policy": "none",
+      "seed": 20261040,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0761519881060926,
+      "messages_sent_total": 0,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.785,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261040_none\\agent_trace.csv"
+    },
+    {
+      "policy": "periodic",
+      "seed": 20261040,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0750847655362952,
+      "messages_sent_total": 219624,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.817,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261040_periodic\\agent_trace.csv"
+    },
+    {
+      "policy": "adaptive",
+      "seed": 20261040,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0728879969803622,
+      "messages_sent_total": 75085,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.647,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261040_adaptive\\agent_trace.csv"
+    },
+    {
+      "policy": "none",
+      "seed": 20261041,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.010947616478548,
+      "messages_sent_total": 0,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.55,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261041_none\\agent_trace.csv"
+    },
+    {
+      "policy": "periodic",
+      "seed": 20261041,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0113750273045876,
+      "messages_sent_total": 216613,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.735,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261041_periodic\\agent_trace.csv"
+    },
+    {
+      "policy": "adaptive",
+      "seed": 20261041,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.0159515701895223,
+      "messages_sent_total": 71756,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.826,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261041_adaptive\\agent_trace.csv"
+    },
+    {
+      "policy": "none",
+      "seed": 20261042,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.052460245835212,
+      "messages_sent_total": 0,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 2.139,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261042_none\\agent_trace.csv"
+    },
+    {
+      "policy": "periodic",
+      "seed": 20261042,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.046199197590799,
+      "messages_sent_total": 216935,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 1.955,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261042_periodic\\agent_trace.csv"
+    },
+    {
+      "policy": "adaptive",
+      "seed": 20261042,
+      "trace_rows": 800,
+      "expected_trace_rows": 800,
+      "mean_position_error": 1.054489105023698,
+      "messages_sent_total": 72905,
+      "process_exit_codes": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "wall_time_seconds": 2.066,
+      "status": "PASS",
+      "trace_csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\corrected_benchmark_20261024_000118\\seed_20261042_adaptive\\agent_trace.csv"
+    }
+  ]
+}

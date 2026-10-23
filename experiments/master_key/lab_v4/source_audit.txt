@@ -1,0 +1,209 @@
+========================================================================
+FILE: experiments\master_key\lab_v4\aeronet_lab_v4.py
+LINES: 461
+SHA256: ca8fd98d2319d99b3d4a5bd975bc4fea5467919d2ab5031b4ac82501616f97fc
+
+TOP-LEVEL DEFINITIONS
+L43-44: symmetrise(matrix)
+L47-53: predict_state(x, P, count)
+L56-64: kalman_update(x, P, observation, R)
+L67-100: covariance_intersection(x1, P1, x2, P2)
+L103-126: make_world(seed)
+L129-181: class Agent
+L184-205: should_send(policy, agent, t)
+L208-296: run_trial(seed, policy)
+L299-304: mean_sd(values)
+L307-318: paired_comparison(left, right)
+L321-457: run_benchmark()
+
+KEY IMPLEMENTATION LINES
+18: PACKET_LOSS = 0.10
+19: MIN_DELAY = 1
+20: MAX_DELAY = 3
+21: SEEDS = list(range(20261020, 20261040))
+22: POLICIES = ("none", "periodic", "reactive", "predictive")
+38: # observation availability are used by every policy for a given seed.
+40: OBSERVATION_PROBABILITIES = np.array([0.98, 0.90, 0.80, 0.68, 0.58, 0.48])
+43: def symmetrise(matrix):
+47: def predict_state(x, P, count=1):
+56: def kalman_update(x, P, observation, R):
+57: innovation = observation - H @ x
+67: def covariance_intersection(x1, P1, x2, P2):
+68: """Conservative track fusion without assuming independent estimates."""
+76: raise ValueError(f"Invalid {name} state or covariance shape")
+78: raise ValueError(f"Non-finite {name} state or covariance")
+82: raise ValueError(f"{name} covariance must be positive definite") from exc
+99: raise RuntimeError("Covariance intersection found no valid solution")
+103: def make_world(seed):
+104: rng = np.random.default_rng(seed)
+112: observations = np.full((STEPS, AGENTS, 2), np.nan, dtype=float)
+116: if rng.random() < OBSERVATION_PROBABILITIES[agent_id]:
+117: observations[t, agent_id] = (
+121: network_rng = np.random.default_rng(seed + 900000)
+123: delay_draws = network_rng.integers(
+124: MIN_DELAY, MAX_DELAY + 1, size=(STEPS, AGENTS, AGENTS)
+126: return truth, observations, loss_draws, delay_draws
+129: class Agent:
+130: def __init__(self, agent_id):
+141: self.observations_used = 0
+143: def update(self, observation):
+145: self.x, self.P = predict_state(self.x, self.P)
+146: elif observation is not None:
+147: self.x[:2] = observation
+153: self.observations_used += 1
+158: if observation is not None:
+162: self.x, self.P, observation, self.R
+164: self.observations_used += 1
+170: def _update_risk(self):
+184: def should_send(policy, agent, t):
+185: if policy == "none":
+187: if policy == "periodic":
+195: if policy == "reactive":
+200: elif policy == "predictive":
+203: raise ValueError(f"Unknown policy: {policy}")
+208: def run_trial(seed, policy):
+209: if policy not in POLICIES:
+210: raise ValueError(f"Unknown policy: {policy}")
+212: truth, observations, loss_draws, delay_draws = make_world(seed)
+215: attempted_broadcasts = 0
+216: delivered_links = 0
+217: total_fusions = 0
+218: state_changing_fusions = 0
+219: total_fusion_delta = 0.0
+220: total_covariance_delta = 0.0
+226: raw = observations[t, i]
+227: observation = raw if np.all(np.isfinite(raw)) else None
+228: agent.update(observation)
+236: incoming_x, incoming_P = predict_state(sent_x, sent_P, age)
+240: recipient.x, recipient.P = covariance_intersection(
+245: covariance_delta = float(np.linalg.norm(recipient.P - before_P))
+246: delivered_links += 1
+247: total_fusions += 1
+248: total_fusion_delta += delta
+249: total_covariance_delta += covariance_delta
+251: if delta > 1e-9 or covariance_delta > 1e-9:
+252: state_changing_fusions += 1
+260: if not should_send(policy, agent, t):
+263: attempted_broadcasts += 1
+269: if loss_draws[t, sender, receiver] < PACKET_LOSS:
+272: delivery_time = t + int(delay_draws[t, sender, receiver])
+273: if delivery_time >= STEPS:
+277: delivery_time, sender, receiver, t,
+282: "seed": int(seed),
+283: "policy": policy,
+284: "rmse": math.sqrt(squared_error_sum / error_count),
+285: "attempted_broadcasts": int(attempted_broadcasts),
+286: "delivered_links": int(delivered_links),
+287: "total_fusions": int(total_fusions),
+288: "state_changing_fusions": int(state_changing_fusions),
+289: "mean_fusion_state_delta": (
+290: total_fusion_delta / total_fusions if total_fusions else 0.0
+292: "mean_fusion_covariance_delta": (
+293: total_covariance_delta / total_fusions if total_fusions else 0.0
+295: "observations_used": int(sum(a.observations_used for a in agents)),
+299: def mean_sd(values):
+307: def paired_comparison(left, right):
+321: def run_benchmark():
+327: for seed in SEEDS:
+328: print(f"Seed {seed}", flush=True)
+329: for policy in POLICIES:
+330: results.append(run_trial(seed, policy))
+333: for policy in POLICIES:
+334: rows = [row for row in results if row["policy"] == policy]
+335: summary[policy] = {
+336: "rmse": mean_sd([r["rmse"] for r in rows]),
+337: "attempted_broadcasts": mean_sd(
+338: [r["attempted_broadcasts"] for r in rows]
+340: "delivered_links": mean_sd([r["delivered_links"] for r in rows]),
+341: "state_changing_fusions": mean_sd(
+342: [r["state_changing_fusions"] for r in rows]
+344: "mean_fusion_state_delta": mean_sd(
+345: [r["mean_fusion_state_delta"] for r in rows]
+349: by_seed = {
+350: (r["seed"], r["policy"]): r["rmse"] for r in results
+353: for policy in POLICIES:
+354: if policy == "none":
+356: comparisons[f"{policy}_minus_none"] = paired_comparison(
+357: [by_seed[(s, policy)] for s in SEEDS],
+358: [by_seed[(s, "none")] for s in SEEDS],
+364: "seeds": SEEDS,
+368: "packet_loss_probability": PACKET_LOSS,
+369: "delay_steps": [MIN_DELAY, MAX_DELAY],
+371: "observation_probabilities": OBSERVATION_PROBABILITIES.tolist(),
+373: "paired_rmse_comparisons": comparisons,
+376: "normal-approximation intervals over paired seed differences. "
+396: f"Seeds: {len(SEEDS)} paired seeds, {SEEDS[0]} to {SEEDS[-1]}",
+399: "## Policy results",
+401: "| Policy | Mean RMSE | SD RMSE | Mean broadcasts | Mean delivered links | Mean state-changing fusions |",
+404: for policy in POLICIES:
+405: item = summary[policy]
+407: f"| {policy} | {item['rmse']['mean']:.6f} | "
+408: f"{item['rmse']['sd']:.6f} | "
+409: f"{item['attempted_broadcasts']['mean']:.1f} | "
+410: f"{item['delivered_links']['mean']:.1f} | "
+411: f"{item['state_changing_fusions']['mean']:.1f} |"
+414: lines += ["", "## Paired RMSE comparisons", ""]
+424: "Negative policy-minus-none RMSE indicates lower error than no communication.",
+428: "- Synthetic target dynamics and observation model.",
+430: "- Covariance intersection is a conservative track-fusion baseline.",
+431: "- The predictive policy is a hand-designed heuristic, not a trained model.",
+438: print("\nPolicy summary")
+439: for policy in POLICIES:
+440: item = summary[policy]
+442: f"{policy:10s} RMSE={item['rmse']['mean']:.6f} "
+443: f"SD={item['rmse']['sd']:.6f} "
+444: f"broadcasts={item['attempted_broadcasts']['mean']:.1f} "
+445: f"delivered={item['delivered_links']['mean']:.1f} "
+446: f"changed_fusions={item['state_changing_fusions']['mean']:.1f}"
+460: if __name__ == "__main__":
+========================================================================
+FILE: experiments\master_key\lab_v3\aeronet_lab_v3.py
+LINES: 542
+SHA256: 8c42760079d2d8587069de35686523dc4479bdb8918856a880db85ceec5395c3
+
+TOP-LEVEL DEFINITIONS
+L40-41: symmetrise(P)
+L44-52: predict_state(x, P, count)
+L55-66: kalman_update(x, P, z)
+L69-121: covariance_intersection(x1, P1, x2, P2)
+L124-153: make_world(seed)
+L156-194: class Agent
+L197-221: should_send(policy, agent, t)
+L224-335: run_trial(seed, policy)
+L338-345: run_campaign()
+L348-432: summarise(rows)
+L435-509: write_outputs(rows, report)
+L512-538: main()
+========================================================================
+FILE: tests\test_lab_v4_validation.py
+LINES: 62
+SHA256: c5824c27c4aff6dbe70286957c782223ee0bc60d731ce4ad5ea024b16ab8debf
+
+TOP-LEVEL DEFINITIONS
+L15-19: test_world_is_deterministic_for_a_seed()
+L22-29: test_sensor_model_has_heterogeneous_noise_and_missing_observations()
+L32-37: test_communication_changes_some_estimates()
+L40-44: test_no_communication_sends_no_messages()
+L47-54: test_communicating_policies_have_matched_broadcast_budget()
+L57-62: test_invalid_policy_is_rejected()
+
+TEST ASSERTIONS
+15: def test_world_is_deterministic_for_a_seed():
+22: def test_sensor_model_has_heterogeneous_noise_and_missing_observations():
+23: assert len(set(LAB.SENSOR_SCALES.tolist())) == LAB.AGENTS
+24: assert len(set(LAB.OBSERVATION_PROBABILITIES.tolist())) == LAB.AGENTS
+28: assert np.all(missing > 0)
+29: assert np.all(missing < LAB.STEPS)
+32: def test_communication_changes_some_estimates():
+34: assert result["attempted_broadcasts"] > 0
+35: assert result["delivered_links"] > 0
+36: assert result["state_changing_fusions"] > 0
+37: assert result["mean_fusion_state_delta"] > 0.0
+40: def test_no_communication_sends_no_messages():
+42: assert result["attempted_broadcasts"] == 0
+43: assert result["delivered_links"] == 0
+44: assert result["state_changing_fusions"] == 0
+47: def test_communicating_policies_have_matched_broadcast_budget():
+53: assert budgets == [budgets[0]] * len(budgets)
+54: assert budgets[0] > 0
+57: def test_invalid_policy_is_rejected():

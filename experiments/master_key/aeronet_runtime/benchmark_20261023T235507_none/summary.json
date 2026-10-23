@@ -1,0 +1,14 @@
+{
+  "agents_requested": 4,
+  "agents_exit_successfully": 4,
+  "steps_requested_per_agent": 200,
+  "trace_rows_written": 800,
+  "expected_trace_rows": 800,
+  "packet_loss_probability": 0.1,
+  "policy": "none",
+  "seed": 20261023,
+  "wall_time_seconds": 4.654,
+  "mean_position_error": 1.29092,
+  "csv": "C:\\Users\\Adil\\aeronet\\AeroNet\\experiments\\master_key\\aeronet_runtime\\benchmark_20261023T235507_none\\agent_trace.csv",
+  "status": "PASS"
+}
