@@ -1,0 +1,21 @@
+{
+  "seed": 20261024,
+  "agents": 6,
+  "steps": 300,
+  "dt": 1.0,
+  "process_noise": 0.04,
+  "measurement_noise": 0.3,
+  "packet_loss": 0.1,
+  "delay_probability": 0.1,
+  "max_delay": 3,
+  "disconnect_probability": 0.02,
+  "disconnect_min_steps": 3,
+  "disconnect_max_steps": 10,
+  "communication_budget_per_agent": 60,
+  "warning_threshold": 1.25,
+  "reactive_threshold": 1.25,
+  "prediction_horizon": 5,
+  "network_radius": 1.1,
+  "degradation_threshold": 1.0,
+  "degradation_horizon": 5
+}

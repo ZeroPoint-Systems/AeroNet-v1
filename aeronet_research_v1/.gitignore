@@ -1,0 +1,15 @@
+﻿.venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+results/*.json
+results/*.csv
+
+# Generated files excluded from hourly commits
+/.venv/
+/.pytest_cache/
+/aeronet_research.egg-info/
+/backups/
+/results*/
+/aeronet_*audit*.txt
+/aeronet_core_review.txt
