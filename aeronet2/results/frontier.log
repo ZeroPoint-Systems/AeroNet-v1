@@ -1,0 +1,8 @@
+nominal   B= 10 periodic=0.811 psa=0.816 (+0.6%) innov=+0.6% random=+1.0% open=-0.5% [39s]
+nominal   B= 20 periodic=0.788 psa=0.785 (-0.4%) innov=+1.2% random=+1.4% open=-0.3% [79s]
+nominal   B= 40 periodic=0.754 psa=0.750 (-0.5%) innov=+1.3% random=+1.2% open=-1.9% [121s]
+nominal   B= 80 periodic=0.686 psa=0.691 (+0.6%) innov=+0.2% random=+0.9% open=-1.3% [170s]
+manoeuvre B= 10 periodic=1.592 psa=1.538 (-3.4%) innov=-1.0% random=+0.1% open=-0.8% [207s]
+manoeuvre B= 20 periodic=1.585 psa=1.502 (-5.2%) innov=-4.8% random=+0.1% open=-0.6% [245s]
+manoeuvre B= 40 periodic=1.549 psa=1.410 (-9.0%) innov=-8.6% random=+0.5% open=-0.3% [289s]
+manoeuvre B= 80 periodic=1.450 psa=1.340 (-7.6%) innov=-8.3% random=+1.0% open=-0.2% [339s]

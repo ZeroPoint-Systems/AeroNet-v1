@@ -1,0 +1,14 @@
+rate=0.003 acc=0.35  observed 3.8% [2.4,5.2]  pred(mu)=3.5% pred(nu)=3.8%  [5s]
+rate=0.003 acc=0.70  observed 7.2% [3.9,10.7]  pred(mu)=4.6% pred(nu)=5.4%  [10s]
+rate=0.015 acc=0.35  observed 6.4% [5.2,7.5]  pred(mu)=4.7% pred(nu)=4.5%  [15s]
+rate=0.015 acc=0.70  observed 7.9% [6.6,9.4]  pred(mu)=6.1% pred(nu)=6.3%  [20s]
+rate=0.030 acc=0.35  observed 6.2% [5.0,7.3]  pred(mu)=5.3% pred(nu)=4.8%  [26s]
+rate=0.030 acc=0.70  observed 7.1% [5.9,8.3]  pred(mu)=6.8% pred(nu)=6.7%  [30s]
+rate=0.080 acc=0.35  observed 4.7% [4.1,5.4]  pred(mu)=6.0% pred(nu)=5.0%  [35s]
+rate=0.080 acc=0.70  observed 3.1% [2.4,3.7]  pred(mu)=7.8% pred(nu)=6.9%  [40s]
+pred_mu MAE=1.67% out-of-sample R^2=-0.75
+Traceback (most recent call last):
+  File "/home/claude/aeronet2/experiments/run_law_confirm.py", line 33, in <module>
+    pr = np.array([r[k] for r in rows])
+                   ~^^^
+KeyError: 'pred_nu'
